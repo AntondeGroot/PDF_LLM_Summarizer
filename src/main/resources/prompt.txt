@@ -8,7 +8,6 @@ Rules:
 
 - Output ONLY Markdown notes.
 - Each card must be separated by a line containing exactly: ---
-
 - Card structure:
 
 (clear, specific, conceptual question)

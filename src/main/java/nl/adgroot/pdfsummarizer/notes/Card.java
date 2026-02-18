@@ -8,4 +8,9 @@ public class Card {
     this.title = title;
     this.markdown = markdown;
   }
+
+  @Override
+  public String toString() {
+    return markdown;
+  }
 }
