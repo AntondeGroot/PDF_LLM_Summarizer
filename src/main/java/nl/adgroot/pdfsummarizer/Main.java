@@ -55,9 +55,8 @@ public class Main {
     CardsPage cardsPage;
     int nrPages = parsedPdf.getContent().size();
     ProgressTracker tracker = new ProgressTracker(nrPages);
-    int pagesIndex = 0;
     for (Chapter chapter : parsedPdf.getTableOfContent()) {
-      System.out.println("chapter loop: " + chapter.title);
+      System.out.println("Processing: " + chapter.title);
       cardsPage = new CardsPage();
       cardsPage.addChapter(chapter.title);
       cardsPage.addTopic(topic);
@@ -84,10 +83,7 @@ public class Main {
         List<Card> cards = parser.parse(md);
         for (Card c : cards) {
           cardsPage.addCard(c.toString());
-        }
-        pagesIndex++;
-        System.out.printf("%.2f %%\n", ((float) pagesIndex / nrPages) * 100);
-        // stop timer and record
+        }// stop timer and record
         long ms = t.elapsedMs();      // elapsed so far (close() also sets it)
         tracker.finishPage(ms);
         // your old percent print, now upgraded:
