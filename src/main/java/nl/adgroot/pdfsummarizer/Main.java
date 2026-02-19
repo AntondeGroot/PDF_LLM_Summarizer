@@ -12,6 +12,7 @@ import nl.adgroot.pdfsummarizer.notes.Card;
 import nl.adgroot.pdfsummarizer.notes.CardParser;
 import nl.adgroot.pdfsummarizer.notes.CardsPage;
 import nl.adgroot.pdfsummarizer.notes.NotesWriter;
+import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
 import nl.adgroot.pdfsummarizer.pdf.PDFContent;
 import nl.adgroot.pdfsummarizer.pdf.PdfBoxTextExtractor;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplate;
@@ -53,6 +54,7 @@ public class Main {
 
     CardsPage cardsPage;
     int nrPages = pdfContent.content.size();
+    ProgressTracker tracker = new ProgressTracker(nrPages);
     int pagesIndex = 0;
     for (Chapter chapter : pdfContent.tableOfContent) {
       System.out.println("chapter loop: "+chapter.title);
@@ -63,6 +65,7 @@ public class Main {
       List<Page> pages4 = pdfContent.content.stream().filter(c -> c.chapter.equals(chapter.title))
           .toList();
       for (Page page : pages4) {
+        ProgressTracker.PageTimer t = tracker.startPage();
         String prompt = promptTemplate.render(Map.of(
             "topic", topic,
             "topicTag", topic.toLowerCase().replace(" ", "-"),
@@ -82,6 +85,11 @@ public class Main {
         }
         pagesIndex++;
         System.out.printf("%.2f %%\n", ((float) pagesIndex / nrPages) * 100);
+        // stop timer and record
+        long ms = t.elapsedMs();      // elapsed so far (close() also sets it)
+        tracker.finishPage(ms);
+        // your old percent print, now upgraded:
+        System.out.println(tracker.formatStatus(ms));
       }
       Path outDir = Path.of("/Users/adgroot/Documents");
       writer.writeCard(outDir, cardsPage);
