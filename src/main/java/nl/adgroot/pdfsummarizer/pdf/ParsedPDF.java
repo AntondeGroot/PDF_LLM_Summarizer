@@ -22,16 +22,18 @@ public class ParsedPDF {
       TOC.append(pages.get(i));
     }
 
-    tableOfContent = convert(TOC.toString(), pages.size());
+    tableOfContent = convert(TOC.toString());
 
     // determine content without TOC
-    List<String> pages2 = PDFUtil.getStringPagesWithoutTOC(pages, tableOfContent);
+    pages = pages.subList(TOC_end+1, pages.size());
+    pages = PDFUtil.getStringPagesWithoutTOC(pages, tableOfContent);
+    tableOfContent.getLast().end = pages.size(); // this value was not yet determined, and there is not yet a good way to determine it.
     List<Page> pages3 = new ArrayList<>();
     offset = -tableOfContent.getFirst().start;
 
     int chapterIdx = 0;
     Chapter current = tableOfContent.getFirst();
-    for (int i = 0; i < pages2.size(); i++) {
+    for (int i = 0; i < pages.size(); i++) {
       int pdfPageNr = i + 1;
 
       // Move to next chapter if this PDF page is at/after the next chapter's PDF start
@@ -69,7 +71,7 @@ public class ParsedPDF {
 
   public void setContext(int nrLinesOfContext){
     for (Chapter chapter: tableOfContent){
-      for (int i = chapter.start+offset; i < chapter.end+offset; i++) {
+      for (int i = chapter.start+offset; i < chapter.end+offset-1; i++) {
         Page page = content.get(i);
         if (i>chapter.start+offset){
           page.setContextBefore(content.get(i-1).getLastLines(nrLinesOfContext));

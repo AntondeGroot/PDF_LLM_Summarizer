@@ -7,7 +7,7 @@ import java.util.regex.Pattern;
 
 public class TableOfContentConverter {
 
-  public static List<Chapter> convert(String tocPages, int lastPageNr) {
+  public static List<Chapter> convert(String tocPages) {
     if (tocPages == null || tocPages.isBlank()) {
       return List.of();
     }
@@ -53,7 +53,9 @@ public class TableOfContentConverter {
         int nextStart = chapters.get(i + 1).start;
         current.end = nextStart - 1;
       } else {
-        current.end = lastPageNr;
+        // the end of the last chapter can for now not be determined.
+        // So instead just leave it at 0, then remove the TOC pages from the other pages
+        // then set the end of the last chapter as the last page number
       }
     }
 
