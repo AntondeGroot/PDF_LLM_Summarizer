@@ -7,11 +7,12 @@ import java.util.List;
 import nl.adgroot.pdfsummarizer.text.Chapter;
 import nl.adgroot.pdfsummarizer.text.Page;
 
-public class PDFContent {
-  public List<Chapter> tableOfContent;
-  public List<Page> content;
+public class ParsedPDF {
+  private List<Chapter> tableOfContent;
+  private List<Page> content;
+  private int offset;
 
-  public PDFContent(List<String> pages){
+  public ParsedPDF(List<String> pages, int nrOfLinesUsedForContext){
     // determine Table Of Content Pages
     int TOC_begin = PDFUtil.getTableOfContentFirstPage(pages);
     int TOC_end = PDFUtil.getTableOfContentLastPage(pages, TOC_begin);
@@ -26,7 +27,7 @@ public class PDFContent {
     // determine content without TOC
     List<String> pages2 = PDFUtil.getStringPagesWithoutTOC(pages, tableOfContent);
     List<Page> pages3 = new ArrayList<>();
-    int offset = -tableOfContent.getFirst().start;
+    offset = -tableOfContent.getFirst().start;
 
     int chapterIdx = 0;
     Chapter current = tableOfContent.getFirst();
@@ -44,22 +45,39 @@ public class PDFContent {
         }
       }
 
-      Page page = new Page(pages.get(i)); // <-- adapt to your Page constructor
+      Page page = new Page(pages.get(i));
 
       int currentPdfStart = current.start + offset;
       int currentPdfEnd   = current.end + offset;
 
       // Only attach chapter if we're within the mapped range
       if (pdfPageNr >= currentPdfStart && pdfPageNr <= currentPdfEnd) {
-        page.chapter = current.title; // or page.setChapter(current)
+        page.chapter = current.title;
         pages3.add(page);
       }
     }
     content = pages3;
+
+    if(nrOfLinesUsedForContext>0){
+      setContext(nrOfLinesUsedForContext);
+    }
   }
 
-  @Override
-  public String toString() {
-    return "TOC: "+tableOfContent+"\nContent: "+content;
+  public List<Chapter> getTableOfContent(){return tableOfContent;}
+
+  public List<Page> getContent(){return content;}
+
+  public void setContext(int nrLinesOfContext){
+    for (Chapter chapter: tableOfContent){
+      for (int i = chapter.start+offset; i < chapter.end+offset; i++) {
+        Page page = content.get(i);
+        if (i>chapter.start+offset){
+          page.setContextBefore(content.get(i-1).getLastLines(nrLinesOfContext));
+        }
+        if((i<chapter.end+offset) && (i<content.size()-1)){
+          page.setContextAfter(content.get(i+1).getFirstLines(nrLinesOfContext));
+        }
+      }
+    }
   }
 }

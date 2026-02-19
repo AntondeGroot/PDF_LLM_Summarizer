@@ -27,6 +27,7 @@ public class AppConfig {
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class CardsConfig {
     public int maxCardsPerChunk = 12;
+    public int nrOfLinesUsedForContext = 0;
   }
 
   @JsonIgnoreProperties(ignoreUnknown = true)

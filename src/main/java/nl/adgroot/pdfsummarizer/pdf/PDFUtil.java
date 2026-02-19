@@ -1,11 +1,8 @@
 package nl.adgroot.pdfsummarizer.pdf;
 
-import static nl.adgroot.pdfsummarizer.text.TableOfContentConverter.convert;
-
 import java.util.ArrayList;
 import java.util.List;
 import nl.adgroot.pdfsummarizer.text.Chapter;
-import nl.adgroot.pdfsummarizer.text.Page;
 
 public class PDFUtil {
 
@@ -60,6 +57,10 @@ public class PDFUtil {
 
   static int getTableOfContentFirstPage(List<String> pages) {
     for (int i = 0; i < 20; i++) {
+      if(i>pages.size()-1){
+        throw new TableOfContentsException("Could not find table of contents");
+      }
+
       if (pages.get(i).toLowerCase().contains("table of contents")) {
         return i;
       }

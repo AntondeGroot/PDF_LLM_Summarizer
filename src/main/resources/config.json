@@ -10,7 +10,8 @@
     "minCharsPerChunk": 2000
   },
   "cards": {
-    "maxCardsPerChunk": 20
+    "maxCardsPerChunk": 20,
+    "nrOfLinesUsedForContext": 3
   },
   "output": {
     "maxFilenameLength": 120

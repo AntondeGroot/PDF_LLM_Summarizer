@@ -13,7 +13,7 @@ import nl.adgroot.pdfsummarizer.notes.CardParser;
 import nl.adgroot.pdfsummarizer.notes.CardsPage;
 import nl.adgroot.pdfsummarizer.notes.NotesWriter;
 import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
-import nl.adgroot.pdfsummarizer.pdf.PDFContent;
+import nl.adgroot.pdfsummarizer.pdf.ParsedPDF;
 import nl.adgroot.pdfsummarizer.pdf.PdfBoxTextExtractor;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplate;
 import nl.adgroot.pdfsummarizer.text.Chapter;
@@ -48,21 +48,23 @@ public class Main {
 
     // read PDF
     List<String> pagesWithTOC = extractor.extractPages(pdfPath);
-    PDFContent pdfContent = new PDFContent(pagesWithTOC);
+    ParsedPDF parsedPdf = new ParsedPDF(pagesWithTOC, cfg.cards.nrOfLinesUsedForContext);
 
     // loop over PDF to add context to each page
 
     CardsPage cardsPage;
-    int nrPages = pdfContent.content.size();
+    int nrPages = parsedPdf.getContent().size();
     ProgressTracker tracker = new ProgressTracker(nrPages);
     int pagesIndex = 0;
-    for (Chapter chapter : pdfContent.tableOfContent) {
-      System.out.println("chapter loop: "+chapter.title);
+    for (Chapter chapter : parsedPdf.getTableOfContent()) {
+      System.out.println("chapter loop: " + chapter.title);
       cardsPage = new CardsPage();
       cardsPage.addChapter(chapter.title);
       cardsPage.addTopic(topic);
 
-      List<Page> pages4 = pdfContent.content.stream().filter(c -> c.chapter.equals(chapter.title))
+      List<Page> pages4 = parsedPdf.getContent()
+          .stream()
+          .filter(c -> c.chapter.equals(chapter.title))
           .toList();
       for (Page page : pages4) {
         ProgressTracker.PageTimer t = tracker.startPage();
