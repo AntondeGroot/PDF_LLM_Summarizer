@@ -5,4 +5,5 @@ You can extract text from a PDF\
 And make Q&A Flashcards for spaced repitition, for example notes in Obsidian.\
 And make a summary for each chapter (TBD).
 
-Use 'OLLAMA_NUM_PARALLEL=4' beforehand.
+# MacOS Parallellize
+Use 'launchctl setenv OLLAMA_NUM_PARALLEL 4' beforehand.
