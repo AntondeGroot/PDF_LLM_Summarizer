@@ -13,3 +13,4 @@ Stopping ollama on MacOS:
 - kill -9 processNumber
 - ps -e | grep ollama (when you still see hits)
 - pkill -f Ollama
+- brew services list | grep ollama (should not display Started) otherwise run `brew services stop ollama`
