@@ -6,6 +6,8 @@ And make Q&A Flashcards for spaced repitition, for example notes in Obsidian.\
 And make a summary for each chapter (TBD).
 
 # MacOS Parallellize
+OLLAMA_NUM_PARALLEL=4 OLLAMA_MAX_LOADED_MODELS=1 ollama serve
+
 Use 'launchctl setenv OLLAMA_NUM_PARALLEL 4' beforehand.
 launchctl setenv OLLAMA_MAX_LOADED_MODELS 1
 Stopping ollama on MacOS:
