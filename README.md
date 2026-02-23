@@ -5,7 +5,7 @@ You can extract text from a PDF\
 And make Q&A Flashcards for spaced repitition, for example notes in Obsidian.\
 And make a summary for each chapter (TBD).
 
-# MacOS Parallellize
+# MacOS Parallellization
 
 ## automatic
 Make your changes in the config.json
