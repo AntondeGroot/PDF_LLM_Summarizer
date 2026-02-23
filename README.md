@@ -6,6 +6,13 @@ And make Q&A Flashcards for spaced repitition, for example notes in Obsidian.\
 And make a summary for each chapter (TBD).
 
 # MacOS Parallellize
+
+## automatic
+Make your changes in the config.json
+Run the bashscript llm/RestartOllama.sh to implement the changes. This script stops all Ollama processes, and starts new terminal windows with N servers running the 
+configuration according to the config.json.
+
+## manual
 OLLAMA_NUM_PARALLEL=1 OLLAMA_MAX_LOADED_MODELS=1 ollama serve
 
 OLLAMA_HOST=127.0.0.1:11435 OLLAMA_NUM_PARALLEL=1 OLLAMA_MAX_LOADED_MODELS=2 ollama serve
