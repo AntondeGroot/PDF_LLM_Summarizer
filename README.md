@@ -6,7 +6,7 @@ And make Q&A Flashcards for spaced repitition, for example notes in Obsidian.\
 And make a summary for each chapter (TBD).
 
 # MacOS Parallellize
-OLLAMA_NUM_PARALLEL=1 OLLAMA_MAX_LOADED_MODELS=2 ollama serve
+OLLAMA_NUM_PARALLEL=1 OLLAMA_MAX_LOADED_MODELS=1 ollama serve
 
 OLLAMA_HOST=127.0.0.1:11435 OLLAMA_NUM_PARALLEL=1 OLLAMA_MAX_LOADED_MODELS=2 ollama serve
 
