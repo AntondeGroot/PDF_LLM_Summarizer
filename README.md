@@ -13,9 +13,17 @@ Run the bashscript llm/RestartOllama.sh to implement the changes. This script st
 configuration according to the config.json.
 
 ## manual
-OLLAMA_NUM_PARALLEL=1 OLLAMA_MAX_LOADED_MODELS=1 ollama serve
+The default port is 11434.
 
-OLLAMA_HOST=127.0.0.1:11435 OLLAMA_NUM_PARALLEL=1 OLLAMA_MAX_LOADED_MODELS=2 ollama serve
+To serve multiple servers you need to run 
+
+
+
+`OLLAMA_HOST=127.0.0.1:11435 OLLAMA_NUM_PARALLEL=1 OLLAMA_MAX_LOADED_MODELS=2 ollama serve` for every additional server. The first host parameter is superfluous for the first server and need to be incremeted for every additional server. That is a bare minimum command:
+
+`OLLAMA_NUM_PARALLEL=1 OLLAMA_MAX_LOADED_MODELS=1 ollama serve`
+
+### make sure Ollama processes are stopped before changing parameters
 
 Use 'launchctl setenv OLLAMA_NUM_PARALLEL 4' beforehand.
 launchctl setenv OLLAMA_MAX_LOADED_MODELS 1
