@@ -1,7 +1,8 @@
 {
   "ollama": {
-    "url": "http://localhost:11434/api/generate",
-    "model": "llama3.1:8b",
+    "servers": 2,
+    "modelsPerServer": ["llama3.1:8b"],
+    "concurrency": 2,
     "temperature": 0.3,
     "timeoutSeconds": 120
   },

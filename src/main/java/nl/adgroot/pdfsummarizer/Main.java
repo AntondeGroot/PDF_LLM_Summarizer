@@ -1,12 +1,25 @@
 package nl.adgroot.pdfsummarizer;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import nl.adgroot.pdfsummarizer.config.AppConfig;
 import nl.adgroot.pdfsummarizer.config.ConfigLoader;
+import nl.adgroot.pdfsummarizer.llm.LlmMetrics;
 import nl.adgroot.pdfsummarizer.llm.OllamaClient;
 import nl.adgroot.pdfsummarizer.notes.Card;
 import nl.adgroot.pdfsummarizer.notes.CardParser;
@@ -21,82 +34,308 @@ import nl.adgroot.pdfsummarizer.text.Page;
 
 public class Main {
 
-  public static void main(String[] args) throws Exception {
-//    if (args.length < 2) {
-//      System.out.println("Usage: java -jar app.jar <input.pdf> <obsidianVaultFolder>");
-//      System.exit(1);
-//    }
+  // Debug counter to verify parallelism (in-flight page pipelines)
+  private static final AtomicInteger IN_FLIGHT = new AtomicInteger(0);
 
-//    Path pdfPath = Paths.get(args[0]);
+  public static void main(String[] args) throws Exception {
 
     Path pdfPath = Paths.get(
-        Main.class.getClassLoader().getResource("Learning Docker.pdf").toURI());
-//    Path vaultFolder = Paths.get(args[1]);
+        Objects.requireNonNull(Main.class.getClassLoader().getResource("Learning Docker.pdf")).toURI()
+    );
 
     // read config
-    Path configPath = Paths.get(Main.class.getClassLoader().getResource("config.json").toURI());
+    Path configPath = Paths.get(
+        Objects.requireNonNull(Main.class.getClassLoader().getResource("config.json")).toURI()
+    );
     AppConfig cfg = ConfigLoader.load(configPath);
 
     // init
     PdfBoxTextExtractor extractor = new PdfBoxTextExtractor();
-    OllamaClient llm = new OllamaClient(cfg.ollama);
-    CardParser parser = new CardParser();
     String topic = filenameToTopic(pdfPath.getFileName().toString());
     NotesWriter writer = new NotesWriter();
-    PromptTemplate promptTemplate = PromptTemplate.load(
-        Paths.get(Main.class.getClassLoader().getResource("prompt.txt").toURI()));
 
-    // read PDF
-    List<String> pagesWithTOC = extractor.extractPages(pdfPath);
-    ParsedPDF parsedPdf = new ParsedPDF(pagesWithTOC, cfg.cards.nrOfLinesUsedForContext);
+    // Build 1 client per server, URL derived from (host, basePort, servers)
+    List<OllamaClient> llms = new ArrayList<>();
 
-    // loop over PDF to add context to each page
+    int servers = Math.max(1, cfg.ollama.servers);
+    String host = (cfg.ollama.host == null || cfg.ollama.host.isBlank()) ? "127.0.0.1" : cfg.ollama.host;
+    int basePort = (cfg.ollama.basePort <= 0) ? 11434 : cfg.ollama.basePort;
+    String path = (cfg.ollama.generatePath == null || cfg.ollama.generatePath.isBlank())
+        ? "/api/generate"
+        : cfg.ollama.generatePath;
 
-    CardsPage cardsPage;
-    int nrPages = parsedPdf.getContent().size();
-    ProgressTracker tracker = new ProgressTracker(nrPages);
-    for (Chapter chapter : parsedPdf.getTableOfContent()) {
-      System.out.println("Processing: " + chapter.title);
-      cardsPage = new CardsPage();
-      cardsPage.addChapter(chapter.title);
-      cardsPage.addTopic(topic);
+// Models: if only 1 provided, use it for all servers; if N provided, map by server index (wrap)
+    String[] models = (cfg.ollama.modelsPerServer == null || cfg.ollama.modelsPerServer.length == 0)
+        ? new String[]{"llama3.1:8b"}
+        : cfg.ollama.modelsPerServer;
 
-      List<Page> pages4 = parsedPdf.getContent()
-          .stream()
-          .filter(c -> c.chapter.equals(chapter.title))
-          .toList();
-      for (Page page : pages4) {
-        ProgressTracker.PageTimer t = tracker.startPage();
-        String prompt = promptTemplate.render(Map.of(
-            "topic", topic,
-            "topicTag", topic.toLowerCase().replace(" ", "-"),
-            "section", "test",
-            "chunkIndex", "1",
-            "chunkCount", "500",
-            "created", LocalDate.now().toString(),
-            "maxCards", String.valueOf(cfg.cards.maxCardsPerChunk),
-            "content", page.toString()
-        ));
-
-        String md = llm.generate(prompt);
-
-        List<Card> cards = parser.parse(md);
-        for (Card c : cards) {
-          cardsPage.addCard(c.toString());
-        }// stop timer and record
-        long ms = t.elapsedMs();      // elapsed so far (close() also sets it)
-        tracker.finishPage(ms);
-        // your old percent print, now upgraded:
-        System.out.println(tracker.formatStatus(ms));
-      }
-      Path outDir = Path.of("/Users/adgroot/Documents");
-      writer.writeCard(outDir, cardsPage);
-      System.out.println("Done. Notes written to: " + outDir.toAbsolutePath());
+    for (int i = 0; i < servers; i++) {
+      int port = basePort + i;
+      String url = "http://" + host + ":" + port + path;
+      String model = models[i % models.length];
+      llms.add(new OllamaClient(cfg.ollama, url, model));
     }
+
+// One semaphore per server (permits per server)
+    final int PER_SERVER_MAX = Math.max(1, cfg.ollama.concurrency); // interpret as per-server parallelism
+    final Semaphore[] serverPermits = new Semaphore[servers];
+    for (int i = 0; i < servers; i++) {
+      serverPermits[i] = new Semaphore(PER_SERVER_MAX, true);
+    }
+
+    // Separate pool for waiting on permits (avoid blocking cpuPool)
+    ExecutorService permitPool = Executors.newCachedThreadPool(r -> {
+      Thread t = new Thread(r, "llm-permit");
+      t.setDaemon(false);
+      return t;
+    });
+
+    PromptTemplate promptTemplate = PromptTemplate.load(Paths.get(
+        Objects.requireNonNull(Main.class.getClassLoader().getResource("prompt.txt")).toURI()));
+
+    // Pool for CPU work only (parsing, etc.)
+    // Set to the concurrency you want (e.g., 4) so you don't create 16 threads.
+    final int CPU_THREADS = Math.max(1, cfg.ollama.concurrency);
+
+    ThreadFactory cpuTf = new ThreadFactory() {
+      private final AtomicInteger n = new AtomicInteger(1);
+
+      @Override public Thread newThread(Runnable r) {
+        Thread t = new Thread(r, "cpu-worker-" + n.getAndIncrement());
+        t.setDaemon(false);
+        return t;
+      }
+    };
+
+    ExecutorService cpuPool = Executors.newFixedThreadPool(CPU_THREADS, cpuTf);
+
+    // Single writer thread: chapter files are written as soon as that chapter completes
+    ExecutorService writerPool = Executors.newSingleThreadExecutor(r -> {
+      Thread t = new Thread(r, "writer");
+      t.setDaemon(false);
+      return t;
+    });
+
+    try {
+      // read PDF
+      List<String> pagesWithTOC = extractor.extractPages(pdfPath);
+      ParsedPDF parsedPdf = new ParsedPDF(pagesWithTOC, cfg.cards.nrOfLinesUsedForContext);
+
+      int totalPages = parsedPdf.getContent().size();
+      ProgressTracker tracker = new ProgressTracker(totalPages);
+
+      // For each chapter we create a "write when done" future.
+      List<CompletableFuture<Void>> chapterWrites = new ArrayList<>();
+
+      for (Chapter chapter : parsedPdf.getTableOfContent()) {
+        final String chapterTitle = chapter.title;
+
+        System.out.println("Scheduling chapter: " + chapterTitle);
+
+        // Prepare chapter container up front
+        CardsPage cardsPage = new CardsPage();
+        cardsPage.addChapter(chapterTitle);
+        cardsPage.addTopic(topic);
+
+        // Pages for this chapter (keep original order from ParsedPDF)
+        List<Page> pagesInChapter = parsedPdf.getContent()
+            .stream()
+            .filter(p -> p.chapter.equals(chapterTitle))
+            .toList();
+
+        List<CompletableFuture<PageResult>> pageFutures = new ArrayList<>(pagesInChapter.size());
+
+        for (int i = 0; i < pagesInChapter.size(); i++) {
+          int pageIndexInChapter = i; // stable for ordering
+          Page page = pagesInChapter.get(i);
+
+          CompletableFuture<PageResult> pf = processPageAsync(
+              llms,
+              serverPermits,
+              permitPool,
+              cpuPool,
+              promptTemplate,
+              cfg,
+              topic,
+              chapterTitle,
+              pageIndexInChapter,
+              pagesInChapter.size(),
+              page,
+              tracker
+          ).whenComplete((res, ex) -> {
+            if (ex != null) {
+              synchronized (System.out) {
+                System.out.println("Page task failed in chapter '" + chapterTitle + "': " + ex);
+              }
+            } else {
+              synchronized (System.out) {
+                System.out.println(tracker.formatStatus(res.millis()));
+              }
+            }
+          });
+
+          pageFutures.add(pf);
+        }
+
+        // When this chapter's pages are all finished, write it (writerPool).
+        CompletableFuture<Void> chapterWrite =
+            CompletableFuture.allOf(pageFutures.toArray(new CompletableFuture[0]))
+                .thenApply(v -> pageFutures.stream()
+                    .map(CompletableFuture::join) // safe after allOf
+                    .sorted(Comparator.comparingInt(PageResult::index))
+                    .toList()
+                )
+                .thenAcceptAsync(results -> {
+                  for (PageResult r : results) {
+                    for (String card : r.cards()) {
+                      cardsPage.addCard(card);
+                    }
+                  }
+
+                  Path outDir = Path.of("/Users/adgroot/Documents");
+                  try {
+                    writer.writeCard(outDir, cardsPage);
+                  } catch (IOException e) {
+                    throw new RuntimeException(e);
+                  }
+
+                  synchronized (System.out) {
+                    System.out.println("WROTE chapter: " + chapterTitle + " -> " + outDir.toAbsolutePath());
+                  }
+                }, writerPool);
+
+        chapterWrites.add(chapterWrite);
+      }
+
+      // Wait until ALL chapter writes are complete
+      CompletableFuture.allOf(chapterWrites.toArray(new CompletableFuture[0])).join();
+
+      System.out.println("Done. All chapters written.");
+
+    } finally {
+      cpuPool.shutdown();
+      writerPool.shutdown();
+      permitPool.shutdown();
+
+      cpuPool.awaitTermination(1, TimeUnit.MINUTES);
+      writerPool.awaitTermination(1, TimeUnit.MINUTES);
+      permitPool.awaitTermination(1, TimeUnit.MINUTES);
+    }
+  }
+
+  /**
+   * Full page pipeline:
+   * - render prompt
+   * - async HTTP call to Ollama (OkHttp enqueue inside OllamaClient)
+   * - parse markdown on cpuPool
+   * - return PageResult (used for per-chapter ordering)
+   */
+  private static CompletableFuture<PageResult> processPageAsync(
+      List<OllamaClient> llms,
+      Semaphore[] serverPermits,
+      ExecutorService permitPool,
+      ExecutorService cpuPool,
+      PromptTemplate promptTemplate,
+      AppConfig cfg,
+      String topic,
+      String chapterTitle,
+      int pageIndexInChapter,
+      int chunkCount,
+      Page page,
+      ProgressTracker tracker
+  ) {
+    long startNs = System.nanoTime();
+    int nowInflight = IN_FLIGHT.incrementAndGet();
+
+    String prompt = promptTemplate.render(Map.of(
+        "topic", topic,
+        "topicTag", topic.toLowerCase().replace(" ", "-"),
+        "section", chapterTitle,
+        "chunkIndex", String.valueOf(pageIndexInChapter + 1),
+        "chunkCount", String.valueOf(chunkCount),
+        "created", LocalDate.now().toString(),
+        "maxCards", String.valueOf(cfg.cards.maxCardsPerChunk),
+        "content", page.toString()
+    ));
+
+    // Wait for whichever server is free (do NOT block cpuPool)
+    CompletableFuture<Integer> serverIndexFuture =
+        CompletableFuture.supplyAsync(() -> acquireAnyServerPermit(serverPermits), permitPool);
+
+    return serverIndexFuture.thenCompose(serverIndex -> {
+      OllamaClient llm = llms.get(serverIndex);
+
+      synchronized (System.out) {
+        System.out.printf(
+            "START idx=%d/%d chapter='%s' inflight=%d server=%d url=%s%n",
+            (pageIndexInChapter + 1), chunkCount, chapterTitle, nowInflight,
+            serverIndex, llm.getUrl()
+        );
+      }
+
+      return llm.generateAsync(prompt)
+          .thenApplyAsync(result -> {
+            try {
+              String md = result.response();
+              LlmMetrics metrics = result.metrics();
+
+              CardParser parser = new CardParser();
+              List<Card> cards = parser.parse(md);
+
+              List<String> cardStrings = new ArrayList<>(cards.size());
+              for (Card c : cards) cardStrings.add(c.toString());
+
+              long millis = (System.nanoTime() - startNs) / 1_000_000;
+
+              tracker.finishPage(metrics);
+
+              return new PageResult(pageIndexInChapter, cardStrings, millis, metrics);
+            } finally {
+              // IMPORTANT: release the server permit no matter what
+              serverPermits[serverIndex].release();
+            }
+          }, cpuPool)
+          .whenComplete((res, ex) -> {
+            int leftInflight = IN_FLIGHT.decrementAndGet();
+            long millis = (System.nanoTime() - startNs) / 1_000_000;
+
+            synchronized (System.out) {
+              System.out.printf(
+                  "END   idx=%d/%d chapter='%s' took=%dms inflight=%d server=%d %s%n",
+                  (pageIndexInChapter + 1), chunkCount, chapterTitle, millis, leftInflight,
+                  serverIndex,
+                  (ex != null ? "ERROR=" + ex : "")
+              );
+            }
+          });
+    });
   }
 
   private static String filenameToTopic(String filename) {
     String noExt = filename.replaceAll("(?i)\\.pdf$", "");
     return noExt.replace('_', ' ').replace('-', ' ').trim();
+  }
+
+  private record PageResult(
+      int index,
+      List<String> cards,
+      long millis,
+      LlmMetrics metrics
+  ) {}
+
+  private static int acquireAnyServerPermit(Semaphore[] serverPermits) {
+    for (;;) {
+      for (int i = 0; i < serverPermits.length; i++) {
+        if (serverPermits[i].tryAcquire()) {
+          return i;
+        }
+      }
+      try {
+        Thread.sleep(2); // small backoff
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new RuntimeException(e);
+      }
+    }
   }
 }

@@ -31,9 +31,9 @@ class TableOfContentConverterTest {
     List<Chapter> expectedTOC = List.of(
         new Chapter("Chapter 35: Running services", 130, 130),
         new Chapter("Chapter 36: Running Simple Node.js Application", 131, 134),
-        new Chapter("Chapter 37: security", 135, 150)
+        new Chapter("Chapter 37: security", 135, 0)
     );
 
-    assertEquals(expectedTOC, convert(rawTOC, 150));
+    assertEquals(expectedTOC, convert(rawTOC));
   }
 }
