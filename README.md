@@ -8,8 +8,8 @@ And make a summary for each chapter (TBD).
 # MacOS Parallellization
 
 ## automatic
-Make your changes in the config.json
-Run the bashscript llm/RestartOllama.sh to implement the changes. This script stops all Ollama processes, and starts new terminal windows with N servers running the 
+Make your changes in the `config.json`
+Run the bashscript `llm/RestartOllama.sh` to implement the changes. This script stops all Ollama processes, and starts new terminal windows with N servers running the 
 configuration according to the config.json.
 
 ## manual
