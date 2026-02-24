@@ -27,10 +27,12 @@ import nl.adgroot.pdfsummarizer.notes.CardsPage;
 import nl.adgroot.pdfsummarizer.notes.NotesWriter;
 import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
 import nl.adgroot.pdfsummarizer.pdf.ParsedPDF;
+import nl.adgroot.pdfsummarizer.pdf.PdfBoxPdfSplitter;
 import nl.adgroot.pdfsummarizer.pdf.PdfBoxTextExtractor;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplate;
 import nl.adgroot.pdfsummarizer.text.Chapter;
 import nl.adgroot.pdfsummarizer.text.Page;
+import org.apache.pdfbox.pdmodel.PDDocument;
 
 public class Main {
 
@@ -51,6 +53,7 @@ public class Main {
 
     // init
     PdfBoxTextExtractor extractor = new PdfBoxTextExtractor();
+    PdfBoxPdfSplitter pdfSplitter = new PdfBoxPdfSplitter();
     String topic = filenameToTopic(pdfPath.getFileName().toString());
     NotesWriter writer = new NotesWriter();
 
@@ -119,6 +122,7 @@ public class Main {
     try {
       // read PDF
       List<String> pagesWithTOC = extractor.extractPages(pdfPath);
+      List<PDDocument> pdfPages = pdfSplitter.splitInMemory(pdfPath);
       ParsedPDF parsedPdf = new ParsedPDF(pagesWithTOC, cfg.cards.nrOfLinesUsedForContext);
 
       int totalPages = parsedPdf.getContent().size();
