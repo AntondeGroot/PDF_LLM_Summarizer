@@ -28,6 +28,10 @@ public class CardsPage {
    this.chapter = safeFileName(chapter);
   }
 
+  public boolean hasContent(){
+   return !content.isBlank();
+  }
+
   private String getHashtag(){
    String hashtag =
        "#flashcards/"+topic+"\n"+

@@ -29,6 +29,7 @@ import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
 import nl.adgroot.pdfsummarizer.pdf.ParsedPDF;
 import nl.adgroot.pdfsummarizer.pdf.PdfBoxPdfSplitter;
 import nl.adgroot.pdfsummarizer.pdf.PdfBoxTextExtractor;
+import nl.adgroot.pdfsummarizer.pdf.PdfPreviewComposer;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplate;
 import nl.adgroot.pdfsummarizer.text.Chapter;
 import nl.adgroot.pdfsummarizer.text.Page;
@@ -56,6 +57,7 @@ public class Main {
     PdfBoxPdfSplitter pdfSplitter = new PdfBoxPdfSplitter();
     String topic = filenameToTopic(pdfPath.getFileName().toString());
     NotesWriter writer = new NotesWriter();
+    PdfPreviewComposer composer = new PdfPreviewComposer();
 
     // Build 1 client per server, URL derived from (host, basePort, servers)
     List<OllamaClient> llms = new ArrayList<>();
@@ -123,7 +125,28 @@ public class Main {
       // read PDF
       List<String> pagesWithTOC = extractor.extractPages(pdfPath);
       List<PDDocument> pdfPages = pdfSplitter.splitInMemory(pdfPath);
+
       ParsedPDF parsedPdf = new ParsedPDF(pagesWithTOC, cfg.cards.nrOfLinesUsedForContext);
+      if (cfg.preview.enabled) {
+        int total = parsedPdf.getContent().size();
+        int n = Math.min(cfg.preview.nrPages, total);
+
+        List<Integer> selectedIndexes;
+
+        if (cfg.preview.randomPages) {
+          selectedIndexes = randomIndexes(total, n);
+        } else {
+          selectedIndexes = firstIndexes(n);
+        }
+
+        pdfPages = selectByIndex(pdfPages, selectedIndexes);
+        parsedPdf.setContent(selectByIndex(parsedPdf.getContent(), selectedIndexes));
+
+        Path out = Path.of("/Users/adgroot/Documents/preview-combined.pdf");
+        composer.composeOriginalPlusTextPages(pdfPages, parsedPdf.getContent().stream().map(c->c.content).toList(), out);
+
+        System.out.println("Preview mode: using pages " + selectedIndexes);
+      }
 
       int totalPages = parsedPdf.getContent().size();
       ProgressTracker tracker = new ProgressTracker(totalPages);
@@ -168,13 +191,9 @@ public class Main {
               tracker
           ).whenComplete((res, ex) -> {
             if (ex != null) {
-              synchronized (System.out) {
-                System.out.println("Page task failed in chapter '" + chapterTitle + "': " + ex);
-              }
+              synchronized (System.out) {System.out.println("Page task failed in chapter '" + chapterTitle + "': " + ex);}
             } else {
-              synchronized (System.out) {
-                System.out.println(tracker.formatStatus(res.millis()));
-              }
+              synchronized (System.out) {System.out.println(tracker.formatStatus(res.millis()));}
             }
           });
 
@@ -198,13 +217,12 @@ public class Main {
 
                   Path outDir = Path.of("/Users/adgroot/Documents");
                   try {
-                    writer.writeCard(outDir, cardsPage);
+                    if(cardsPage.hasContent()){
+                      writer.writeCard(outDir, cardsPage);
+                      synchronized (System.out) {System.out.println("WROTE chapter: " + chapterTitle + " -> " + outDir.toAbsolutePath());}
+                    }
                   } catch (IOException e) {
                     throw new RuntimeException(e);
-                  }
-
-                  synchronized (System.out) {
-                    System.out.println("WROTE chapter: " + chapterTitle + " -> " + outDir.toAbsolutePath());
                   }
                 }, writerPool);
 
@@ -341,5 +359,29 @@ public class Main {
         throw new RuntimeException(e);
       }
     }
+  }
+
+  private static List<Integer> firstIndexes(int n) {
+    List<Integer> list = new ArrayList<>(n);
+    for (int i = 0; i < n; i++) {
+      list.add(i);
+    }
+    return list;
+  }
+
+  private static List<Integer> randomIndexes(int total, int n) {
+    List<Integer> all = new ArrayList<>(total);
+    for (int i = 0; i < total; i++) {
+      all.add(i);
+    }
+    java.util.Collections.shuffle(all);
+    return all.subList(0, n);
+  }
+
+  private static <T> List<T> selectByIndex(List<T> source, List<Integer> indexes) {
+    return indexes.stream()
+        .sorted() // keep original order for predictable flow
+        .map(source::get)
+        .toList();
   }
 }

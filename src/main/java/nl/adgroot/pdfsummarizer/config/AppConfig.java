@@ -8,6 +8,7 @@ public class AppConfig {
   public OllamaConfig ollama = new OllamaConfig();
   public ChunkingConfig chunking = new ChunkingConfig();
   public CardsConfig cards = new CardsConfig();
+  public PreviewConfig preview = new PreviewConfig();
   public OutputConfig output = new OutputConfig();
 
   @JsonIgnoreProperties(ignoreUnknown = true)
@@ -40,6 +41,13 @@ public class AppConfig {
   public static class CardsConfig {
     public int maxCardsPerChunk = 12;
     public int nrOfLinesUsedForContext = 0;
+  }
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public static class PreviewConfig {
+    public boolean enabled = false;
+    public boolean randomPages = true;
+    public int nrPages = 5;
+    public boolean combinePdfWithNotes = true;
   }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
