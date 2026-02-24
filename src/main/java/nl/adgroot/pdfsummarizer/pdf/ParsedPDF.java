@@ -69,6 +69,10 @@ public class ParsedPDF {
 
   public List<Page> getContent(){return content;}
 
+  public void setContent(List<Page> content){
+    this.content = content;
+  }
+
   public void setContext(int nrLinesOfContext){
     for (Chapter chapter: tableOfContent){
       for (int i = chapter.start+offset; i < chapter.end+offset-1; i++) {

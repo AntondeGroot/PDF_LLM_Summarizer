@@ -14,6 +14,12 @@
     "maxCardsPerChunk": 20,
     "nrOfLinesUsedForContext": 3
   },
+  "preview": {
+    "enabled": true,
+    "randomPages": true,
+    "nrPages": 5,
+    "combinePdfWithNotes": true
+  },
   "output": {
     "maxFilenameLength": 120
   }
