@@ -11,9 +11,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import nl.adgroot.pdfsummarizer.config.AppConfig;
@@ -59,47 +56,21 @@ public class Main {
     String topic = filenameToTopic(pdfPath.getFileName().toString());
     NotesWriter writer = new NotesWriter();
     PdfPreviewComposer composer = new PdfPreviewComposer();
-
     List<OllamaClient> llms = OllamaClientsFactory.create(cfg.ollama);
 
     int servers = Math.max(1, cfg.ollama.servers);
     int perServerMax = Math.max(1, cfg.ollama.concurrency);
     ServerPermitPool permitPool = new ServerPermitPool(servers, perServerMax, true);
 
-    // Separate pool for waiting on permits (avoid blocking cpuPool)
-    ExecutorService permitPoolExecutor = Executors.newCachedThreadPool(r -> {
-      Thread t = new Thread(r, "llm-permit");
-      t.setDaemon(false);
-      return t;
-    });
-
     PromptTemplate promptTemplate = PromptTemplate.load(Paths.get(
         Objects.requireNonNull(Main.class.getClassLoader().getResource("prompt.txt")).toURI()));
 
-    // Pool for CPU work only (parsing, etc.)
-    // Set to the concurrency you want (e.g., 4) so you don't create 16 threads.
-    final int CPU_THREADS = Math.max(1, cfg.ollama.concurrency);
+    try(AppExecutors exec = AppExecutors.create(cfg)) {
+      // Separate pool for waiting on permits (avoid blocking cpuPoolExecutor)
+      ExecutorService permitPoolExecutor = exec.permitPoolExecutor();
+      ExecutorService cpuPoolExecutor = exec.cpuPool(); // for parsing
+      ExecutorService writerPool = exec.writerPool(); // Single writer thread: chapter files are written as soon as that chapter completes
 
-    ThreadFactory cpuTf = new ThreadFactory() {
-      private final AtomicInteger n = new AtomicInteger(1);
-
-      @Override public Thread newThread(Runnable r) {
-        Thread t = new Thread(r, "cpu-worker-" + n.getAndIncrement());
-        t.setDaemon(false);
-        return t;
-      }
-    };
-
-    ExecutorService cpuPool = Executors.newFixedThreadPool(CPU_THREADS, cpuTf);
-
-    // Single writer thread: chapter files are written as soon as that chapter completes
-    ExecutorService writerPool = Executors.newSingleThreadExecutor(r -> {
-      Thread t = new Thread(r, "writer");
-      t.setDaemon(false);
-      return t;
-    });
-
-    try {
       // read PDF
       List<String> pagesWithTOC = extractor.extractPages(pdfPath);
       List<PDDocument> pdfPages = pdfSplitter.splitInMemory(pdfPath);
@@ -158,7 +129,7 @@ public class Main {
               llms,
               permitPool,
               permitPoolExecutor,
-              cpuPool,
+              cpuPoolExecutor,
               promptTemplate,
               cfg,
               topic,
@@ -212,14 +183,6 @@ public class Main {
 
       System.out.println("Done. All chapters written.");
 
-    } finally {
-      cpuPool.shutdown();
-      writerPool.shutdown();
-      permitPoolExecutor.shutdown();
-
-      cpuPool.awaitTermination(1, TimeUnit.MINUTES);
-      writerPool.awaitTermination(1, TimeUnit.MINUTES);
-      permitPoolExecutor.awaitTermination(1, TimeUnit.MINUTES);
     }
   }
 
@@ -227,14 +190,14 @@ public class Main {
    * Full page pipeline:
    * - render prompt
    * - async HTTP call to Ollama (OkHttp enqueue inside OllamaClient)
-   * - parse markdown on cpuPool
+   * - parse markdown on cpuPoolExecutor
    * - return PageResult (used for per-chapter ordering)
    */
   private static CompletableFuture<PageResult> processPageAsync(
       List<OllamaClient> llms,
       ServerPermitPool permits,
       ExecutorService permitPoolExecutor,
-      ExecutorService cpuPool,
+      ExecutorService cpuPoolExecutor,
       PromptTemplate promptTemplate,
       AppConfig cfg,
       String topic,
@@ -258,7 +221,7 @@ public class Main {
         "content", page.toString()
     ));
 
-    // Wait for whichever server is free (do NOT block cpuPool)
+    // Wait for whichever server is free (do NOT block cpuPoolExecutor)
     CompletableFuture<Integer> serverIndexFuture = permits.acquireAnyAsync(permitPoolExecutor);
 
     return serverIndexFuture.thenCompose(serverIndex -> {
@@ -293,7 +256,7 @@ public class Main {
               // IMPORTANT: release the server permit no matter what
               permits.release(serverIndex);
             }
-          }, cpuPool)
+          }, cpuPoolExecutor)
           .whenComplete((res, ex) -> {
             int leftInflight = IN_FLIGHT.decrementAndGet();
             long millis = (System.nanoTime() - startNs) / 1_000_000;
