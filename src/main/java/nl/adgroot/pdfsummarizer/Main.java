@@ -12,7 +12,6 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -21,6 +20,8 @@ import nl.adgroot.pdfsummarizer.config.AppConfig;
 import nl.adgroot.pdfsummarizer.config.ConfigLoader;
 import nl.adgroot.pdfsummarizer.llm.LlmMetrics;
 import nl.adgroot.pdfsummarizer.llm.OllamaClient;
+import nl.adgroot.pdfsummarizer.llm.OllamaClientsFactory;
+import nl.adgroot.pdfsummarizer.llm.ServerPermitPool;
 import nl.adgroot.pdfsummarizer.notes.Card;
 import nl.adgroot.pdfsummarizer.notes.CardParser;
 import nl.adgroot.pdfsummarizer.notes.CardsPage;
@@ -59,37 +60,14 @@ public class Main {
     NotesWriter writer = new NotesWriter();
     PdfPreviewComposer composer = new PdfPreviewComposer();
 
-    // Build 1 client per server, URL derived from (host, basePort, servers)
-    List<OllamaClient> llms = new ArrayList<>();
+    List<OllamaClient> llms = OllamaClientsFactory.create(cfg.ollama);
 
     int servers = Math.max(1, cfg.ollama.servers);
-    String host = (cfg.ollama.host == null || cfg.ollama.host.isBlank()) ? "127.0.0.1" : cfg.ollama.host;
-    int basePort = (cfg.ollama.basePort <= 0) ? 11434 : cfg.ollama.basePort;
-    String path = (cfg.ollama.generatePath == null || cfg.ollama.generatePath.isBlank())
-        ? "/api/generate"
-        : cfg.ollama.generatePath;
-
-// Models: if only 1 provided, use it for all servers; if N provided, map by server index (wrap)
-    String[] models = (cfg.ollama.modelsPerServer == null || cfg.ollama.modelsPerServer.length == 0)
-        ? new String[]{"llama3.1:8b"}
-        : cfg.ollama.modelsPerServer;
-
-    for (int i = 0; i < servers; i++) {
-      int port = basePort + i;
-      String url = "http://" + host + ":" + port + path;
-      String model = models[i % models.length];
-      llms.add(new OllamaClient(cfg.ollama, url, model));
-    }
-
-// One semaphore per server (permits per server)
-    final int PER_SERVER_MAX = Math.max(1, cfg.ollama.concurrency); // interpret as per-server parallelism
-    final Semaphore[] serverPermits = new Semaphore[servers];
-    for (int i = 0; i < servers; i++) {
-      serverPermits[i] = new Semaphore(PER_SERVER_MAX, true);
-    }
+    int perServerMax = Math.max(1, cfg.ollama.concurrency);
+    ServerPermitPool permitPool = new ServerPermitPool(servers, perServerMax, true);
 
     // Separate pool for waiting on permits (avoid blocking cpuPool)
-    ExecutorService permitPool = Executors.newCachedThreadPool(r -> {
+    ExecutorService permitPoolExecutor = Executors.newCachedThreadPool(r -> {
       Thread t = new Thread(r, "llm-permit");
       t.setDaemon(false);
       return t;
@@ -178,8 +156,8 @@ public class Main {
 
           CompletableFuture<PageResult> pf = processPageAsync(
               llms,
-              serverPermits,
               permitPool,
+              permitPoolExecutor,
               cpuPool,
               promptTemplate,
               cfg,
@@ -237,11 +215,11 @@ public class Main {
     } finally {
       cpuPool.shutdown();
       writerPool.shutdown();
-      permitPool.shutdown();
+      permitPoolExecutor.shutdown();
 
       cpuPool.awaitTermination(1, TimeUnit.MINUTES);
       writerPool.awaitTermination(1, TimeUnit.MINUTES);
-      permitPool.awaitTermination(1, TimeUnit.MINUTES);
+      permitPoolExecutor.awaitTermination(1, TimeUnit.MINUTES);
     }
   }
 
@@ -254,8 +232,8 @@ public class Main {
    */
   private static CompletableFuture<PageResult> processPageAsync(
       List<OllamaClient> llms,
-      Semaphore[] serverPermits,
-      ExecutorService permitPool,
+      ServerPermitPool permits,
+      ExecutorService permitPoolExecutor,
       ExecutorService cpuPool,
       PromptTemplate promptTemplate,
       AppConfig cfg,
@@ -281,8 +259,7 @@ public class Main {
     ));
 
     // Wait for whichever server is free (do NOT block cpuPool)
-    CompletableFuture<Integer> serverIndexFuture =
-        CompletableFuture.supplyAsync(() -> acquireAnyServerPermit(serverPermits), permitPool);
+    CompletableFuture<Integer> serverIndexFuture = permits.acquireAnyAsync(permitPoolExecutor);
 
     return serverIndexFuture.thenCompose(serverIndex -> {
       OllamaClient llm = llms.get(serverIndex);
@@ -314,7 +291,7 @@ public class Main {
               return new PageResult(pageIndexInChapter, cardStrings, millis, metrics);
             } finally {
               // IMPORTANT: release the server permit no matter what
-              serverPermits[serverIndex].release();
+              permits.release(serverIndex);
             }
           }, cpuPool)
           .whenComplete((res, ex) -> {
@@ -344,22 +321,6 @@ public class Main {
       long millis,
       LlmMetrics metrics
   ) {}
-
-  private static int acquireAnyServerPermit(Semaphore[] serverPermits) {
-    for (;;) {
-      for (int i = 0; i < serverPermits.length; i++) {
-        if (serverPermits[i].tryAcquire()) {
-          return i;
-        }
-      }
-      try {
-        Thread.sleep(2); // small backoff
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        throw new RuntimeException(e);
-      }
-    }
-  }
 
   private static List<Integer> firstIndexes(int n) {
     List<Integer> list = new ArrayList<>(n);
