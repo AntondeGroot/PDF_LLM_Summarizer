@@ -1,25 +1,23 @@
 package nl.adgroot.pdfsummarizer.pdf;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.PDPageContentStream.AppendMode;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
-import org.apache.pdfbox.pdmodel.font.PDType1Font;
-import org.apache.pdfbox.pdmodel.font.Standard14Fonts.FontName;
+import org.apache.pdfbox.pdmodel.font.PDFont;
+import org.apache.pdfbox.pdmodel.font.PDType0Font;
 
 public class PdfPreviewComposer {
 
-  /**
-   * Creates a single PDF that contains, for each i:
-   *  - the original page i (from pdfPages)
-   *  - a generated page containing parsedTextPages.get(i)
-   *
-   * Caller owns pdfPages and should close them elsewhere.
-   */
+  private static final String DEFAULT_FONT_RESOURCE = "/fonts/JetBrains/JetBrainsMono-Regular.ttf";
+
   public void composeOriginalPlusTextPages(
       List<PDDocument> pdfPages,
       List<String> parsedTextPages,
@@ -30,49 +28,71 @@ public class PdfPreviewComposer {
 
     try (PDDocument out = new PDDocument()) {
 
+      // Load the font ONCE into the SAME document we will save
+      PDFont font = loadFont(out, DEFAULT_FONT_RESOURCE);
+
       for (int i = 0; i < n; i++) {
 
-        // 1) add original page (import into output doc)
         PDPage original = pdfPages.get(i).getPage(0);
         out.importPage(original);
 
-        // 2) add generated text page (same size as original)
         PDRectangle mediaBox = original.getMediaBox();
         PDPage textPage = new PDPage(mediaBox);
         out.addPage(textPage);
 
-        writeWrappedText(out, textPage, parsedTextPages.get(i));
+        String s = parsedTextPages.get(i);
+        System.out.println(debugNonAscii("ABOUT TO WRITE: " + s));
+        writeWrappedText(out, textPage, parsedTextPages.get(i), font);
       }
 
       out.save(outputPdf.toFile());
     }
   }
 
-  private void writeWrappedText(PDDocument doc, PDPage page, String text) throws IOException {
+  private static String debugNonAscii(String s) {
+    StringBuilder sb = new StringBuilder();
+    for (int i = 0; i < s.length(); i++) {
+      char c = s.charAt(i);
+      if (c < 32 || c > 126) sb.append(String.format("\\u%04X", (int) c));
+      else sb.append(c);
+    }
+    return sb.toString();
+  }
+
+  private static PDFont loadFont(PDDocument doc, String classpathResource) throws IOException {
+    try (InputStream is = PdfPreviewComposer.class.getResourceAsStream(classpathResource)) {
+      if (is == null) {
+        throw new IllegalStateException("Font not found on classpath: " + classpathResource);
+      }
+      return PDType0Font.load(doc, is);
+    }
+  }
+
+  private void writeWrappedText(PDDocument doc, PDPage page, String text, PDFont font) throws IOException {
     float margin = 48f;
     float fontSize = 10f;
     float leading = 1.2f * fontSize;
 
-    var font = new PDType1Font(FontName.HELVETICA);
-
     PDRectangle box = page.getMediaBox();
-    float width = box.getWidth() - 2 * margin;
-    float startX = margin;
-    float startY = box.getHeight() - margin;
+    float maxWidth = box.getWidth() - 2 * margin;
+
+    float x = margin;
+    float y = box.getHeight() - margin;
+
+    String safe = (text == null) ? "" : text.replace("\r", "");
 
     try (PDPageContentStream cs = new PDPageContentStream(doc, page, AppendMode.OVERWRITE, true, true)) {
       cs.beginText();
       cs.setFont(font, fontSize);
-      cs.newLineAtOffset(startX, startY);
+      cs.newLineAtOffset(x, y);
 
-      for (String line : wrap(text == null ? "" : text, font, fontSize, width)) {
+      for (String line : wrapPreserveSpaces(safe, font, fontSize, maxWidth)) {
+        if (y < margin) break;
+
+        // PDF content streams can't handle some control chars; keep it safe
         cs.showText(line);
         cs.newLineAtOffset(0, -leading);
-
-        // stop if we run off the page (simple approach)
-        if ((startY -= leading) < margin) {
-          break;
-        }
+        y -= leading;
       }
 
       cs.endText();
@@ -80,38 +100,95 @@ public class PdfPreviewComposer {
   }
 
   /**
-   * Very simple word-wrap. Good enough for preview.
-   * (If you want perfect layout, you’ll end up implementing more logic.)
+   * Wrap text without collapsing multiple spaces/tabs (good for code).
+   * - Splits into paragraphs by '\n'
+   * - Wraps by tokens that include whitespace, so indentation is preserved
    */
-  private static List<String> wrap(String text,
-      org.apache.pdfbox.pdmodel.font.PDFont font,
-      float fontSize,
-      float maxWidth) throws IOException {
+  private static List<String> wrapPreserveSpaces(String text, PDFont font, float fontSize, float maxWidth)
+      throws IOException {
 
-    java.util.List<String> lines = new java.util.ArrayList<>();
-    for (String paragraph : text.replace("\r", "").split("\n")) {
+    List<String> lines = new ArrayList<>();
+
+    for (String paragraph : text.split("\n", -1)) {
+      if (paragraph.isEmpty()) {
+        lines.add("");
+        continue;
+      }
+
+      // Tokenize into runs of non-space and runs of space/tab
+      List<String> tokens = new ArrayList<>();
+      StringBuilder tok = new StringBuilder();
+      Boolean inWs = null;
+
+      for (int i = 0; i < paragraph.length(); i++) {
+        char c = paragraph.charAt(i);
+        boolean ws = (c == ' ' || c == '\t');
+        if (inWs == null || ws == inWs) {
+          tok.append(c);
+        } else {
+          tokens.add(tok.toString());
+          tok.setLength(0);
+          tok.append(c);
+        }
+        inWs = ws;
+      }
+      if (tok.length() > 0) tokens.add(tok.toString());
 
       StringBuilder line = new StringBuilder();
-      for (String word : paragraph.split("\\s+")) {
-        if (word.isBlank()) continue;
-
-        String candidate = line.isEmpty() ? word : line + " " + word;
+      for (String t : tokens) {
+        String candidate = line.toString() + t;
         float w = font.getStringWidth(candidate) / 1000f * fontSize;
 
-        if (w <= maxWidth) {
+        if (w <= maxWidth || line.length() == 0) {
           line.setLength(0);
           line.append(candidate);
         } else {
-          if (!line.isEmpty()) lines.add(line.toString());
+          // flush current line, start a new one
+          lines.add(rstrip(line.toString()));
           line.setLength(0);
-          line.append(word);
+
+          // If token itself is super long, hard-break it
+          if (font.getStringWidth(t) / 1000f * fontSize > maxWidth) {
+            for (String chunk : hardWrap(t, font, fontSize, maxWidth)) {
+              lines.add(rstrip(chunk));
+            }
+          } else {
+            line.append(t);
+          }
         }
       }
-
-      if (!line.isEmpty()) lines.add(line.toString());
-      // preserve paragraph breaks with an empty line
-      lines.add("");
+      lines.add(rstrip(line.toString()));
     }
+
     return lines;
+  }
+
+  private static List<String> hardWrap(String token, PDFont font, float fontSize, float maxWidth) throws IOException {
+    List<String> out = new ArrayList<>();
+    StringBuilder line = new StringBuilder();
+    for (int i = 0; i < token.length(); i++) {
+      char c = token.charAt(i);
+      String candidate = line.toString() + c;
+      float w = font.getStringWidth(candidate) / 1000f * fontSize;
+      if (w <= maxWidth || line.length() == 0) {
+        line.append(c);
+      } else {
+        out.add(line.toString());
+        line.setLength(0);
+        line.append(c);
+      }
+    }
+    if (line.length() > 0) out.add(line.toString());
+    return out;
+  }
+
+  private static String rstrip(String s) {
+    int end = s.length();
+    while (end > 0) {
+      char c = s.charAt(end - 1);
+      if (c == ' ' || c == '\t') end--;
+      else break;
+    }
+    return s.substring(0, end);
   }
 }
