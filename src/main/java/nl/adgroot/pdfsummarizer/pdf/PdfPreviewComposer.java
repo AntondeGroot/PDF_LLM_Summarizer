@@ -4,8 +4,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
+import java.util.Map;
+import nl.adgroot.pdfsummarizer.notes.CardsPage;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -20,12 +23,13 @@ public class PdfPreviewComposer {
 
   public void composeOriginalPlusTextPages(
       List<PDDocument> pdfPages,
-      List<String> parsedTextPages,
+      Map<Integer, CardsPage> parsedTextPages,
       Path outputPdf
   ) throws IOException {
 
     int n = Math.min(pdfPages.size(), parsedTextPages.size());
 
+    List<Integer> sortedKeys = parsedTextPages.keySet().stream().sorted().toList();
     try (PDDocument out = new PDDocument()) {
 
       // Load the font ONCE into the SAME document we will save
@@ -40,9 +44,10 @@ public class PdfPreviewComposer {
         PDPage textPage = new PDPage(mediaBox);
         out.addPage(textPage);
 
-        String s = parsedTextPages.get(i);
+        String s = parsedTextPages.get(sortedKeys.get(i)).content;
+        s = sortedKeys.get(i) + s;
         System.out.println(debugNonAscii("ABOUT TO WRITE: " + s));
-        writeWrappedText(out, textPage, parsedTextPages.get(i), font);
+        writeWrappedText(out, textPage, s, font);
       }
 
       out.save(outputPdf.toFile());

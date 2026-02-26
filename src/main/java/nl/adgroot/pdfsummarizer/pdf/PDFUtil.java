@@ -79,18 +79,13 @@ public class PDFUtil {
 
 
   public static List<String> getStringPagesWithoutTOC(List<String> pagesRaw, List<Chapter> tableOfContents){
-    String firstChapter = tableOfContents.getFirst().title;
-    boolean foundFirstChapter = false;
-    List<String> pages = new ArrayList<>();
+    String firstChapter = tableOfContents.getFirst().header;
 
-    for(String pageString: pagesRaw){
-      if(pageString.contains(firstChapter)){
-        foundFirstChapter = true;
-      }
-      if(foundFirstChapter){
-        pages.add(pageString);
+    for (int i = 0; i < pagesRaw.size(); i++) {
+      if(pagesRaw.get(i).contains(firstChapter)){
+        return pagesRaw.subList(i, pagesRaw.size()-1);
       }
     }
-    return pages;
+    return new ArrayList<>();
   }
 }

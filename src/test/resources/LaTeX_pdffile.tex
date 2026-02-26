@@ -1,0 +1,61 @@
+\documentclass[a4paper,12pt]{book}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage{setspace}
+
+\pagestyle{plain}
+
+\begin{document}
+
+% --------------------
+% Title Page
+% --------------------
+\begin{titlepage}
+    \centering
+    \vspace*{\fill}
+    {\Huge\bfseries My Document Title\par}
+    \vspace{1.5cm}
+    {\Large Author Name\par}
+    \vspace{1cm}
+    {\large \today\par}
+    \vspace*{\fill}
+\end{titlepage}
+
+% --------------------
+% Table of Contents
+% --------------------
+\tableofcontents
+\newpage
+
+% --------------------
+% About Section
+% --------------------
+\chapter*{About}
+\addcontentsline{toc}{chapter}{About}
+
+This is the about section of the document.  
+You can describe the purpose of the document here.
+
+\newpage
+
+% --------------------
+% Chapters
+% --------------------
+\chapter{topic 1}
+This is the content of chapter 1.
+
+\chapter{topic 2}
+This is the content of chapter 2.
+
+\chapter{topic 3}
+This is the content of chapter 3.
+
+\chapter{topic 4}
+This is the content of chapter 4.
+
+\chapter{topic 5}
+This is the content of chapter 5.
+
+\end{document}

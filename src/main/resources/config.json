@@ -16,7 +16,7 @@
   },
   "preview": {
     "enabled": true,
-    "randomPages": true,
+    "randomPages": false,
     "nrPages": 5,
     "combinePdfWithNotes": true
   },
