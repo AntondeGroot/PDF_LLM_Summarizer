@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -76,6 +77,8 @@ public class Main {
       List<PDDocument> pdfPages = pdfSplitter.splitInMemory(pdfPath);
 
       ParsedPDF parsedPdf = new ParsedPDF(pagesWithTOC, cfg.cards.nrOfLinesUsedForContext);
+      pdfPages = pdfPages.subList(pdfPages.size() - parsedPdf.getContent().size() - parsedPdf.getTableOfContent().getFirst().start, pdfPages.size());
+      pdfPages = pdfPages.subList(0, parsedPdf.getContent().size());
       if (cfg.preview.enabled) {
         int total = parsedPdf.getContent().size();
         int n = Math.min(cfg.preview.nrPages, total);
@@ -88,11 +91,11 @@ public class Main {
           selectedIndexes = firstIndexes(n);
         }
 
+        System.out.println("selected indexes for preview are: "+selectedIndexes);
+        System.out.println("pdfpages size: "+pdfPages.size()+", parsedPdf size: "+parsedPdf.getContent().size());
+
         pdfPages = selectByIndex(pdfPages, selectedIndexes);
         parsedPdf.setContent(selectByIndex(parsedPdf.getContent(), selectedIndexes));
-
-        Path out = Path.of("/Users/adgroot/Documents/preview-combined.pdf");
-        composer.composeOriginalPlusTextPages(pdfPages, parsedPdf.getContent().stream().map(c->c.content).toList(), out);
 
         System.out.println("Preview mode: using pages " + selectedIndexes);
       }
@@ -100,23 +103,26 @@ public class Main {
       int totalPages = parsedPdf.getContent().size();
       ProgressTracker tracker = new ProgressTracker(totalPages);
 
+      // Holds final “generated text page” per PDF page index (0..totalPages-1)
+      Map<Integer, CardsPage> cardsPagesByIndex = new java.util.concurrent.ConcurrentHashMap<>();
+
       // For each chapter we create a "write when done" future.
       List<CompletableFuture<Void>> chapterWrites = new ArrayList<>();
 
       for (Chapter chapter : parsedPdf.getTableOfContent()) {
-        final String chapterTitle = chapter.title;
+        final String chapterHeader = chapter.header;
 
-        System.out.println("Scheduling chapter: " + chapterTitle);
+        System.out.println("Scheduling chapter: " + chapterHeader);
 
         // Prepare chapter container up front
         CardsPage cardsPage = new CardsPage();
-        cardsPage.addChapter(chapterTitle);
+        cardsPage.addChapter(chapterHeader);
         cardsPage.addTopic(topic);
 
         // Pages for this chapter (keep original order from ParsedPDF)
         List<Page> pagesInChapter = parsedPdf.getContent()
             .stream()
-            .filter(p -> p.chapter.equals(chapterTitle))
+            .filter(p -> p.chapter.equals(chapterHeader))
             .toList();
 
         List<CompletableFuture<PageResult>> pageFutures = new ArrayList<>(pagesInChapter.size());
@@ -124,6 +130,7 @@ public class Main {
         for (int i = 0; i < pagesInChapter.size(); i++) {
           int pageIndexInChapter = i; // stable for ordering
           Page page = pagesInChapter.get(i);
+          int pageNr = page.pageNr;
 
           CompletableFuture<PageResult> pf = processPageAsync(
               llms,
@@ -133,15 +140,17 @@ public class Main {
               promptTemplate,
               cfg,
               topic,
-              chapterTitle,
+              chapterHeader,
               pageIndexInChapter,
+              pageNr,
               pagesInChapter.size(),
               page,
               tracker
           ).whenComplete((res, ex) -> {
             if (ex != null) {
-              synchronized (System.out) {System.out.println("Page task failed in chapter '" + chapterTitle + "': " + ex);}
+              synchronized (System.out) {System.out.println("Page task failed in chapter '" + chapterHeader + "': " + ex);}
             } else {
+              System.out.println(res.cards);
               synchronized (System.out) {System.out.println(tracker.formatStatus(res.millis()));}
             }
           });
@@ -167,8 +176,9 @@ public class Main {
                   Path outDir = Path.of("/Users/adgroot/Documents");
                   try {
                     if(cardsPage.hasContent()){
+                      cardsPagesByIndex.put(results.getFirst().pageNr(), cardsPage);
                       writer.writeCard(outDir, cardsPage);
-                      synchronized (System.out) {System.out.println("WROTE chapter: " + chapterTitle + " -> " + outDir.toAbsolutePath());}
+                      synchronized (System.out) {System.out.println("WROTE chapter: " + chapterHeader + " -> " + outDir.toAbsolutePath());}
                     }
                   } catch (IOException e) {
                     throw new RuntimeException(e);
@@ -181,6 +191,9 @@ public class Main {
       // Wait until ALL chapter writes are complete
       CompletableFuture.allOf(chapterWrites.toArray(new CompletableFuture[0])).join();
 
+      // preview
+      Path out = Path.of("/Users/adgroot/Documents/preview-combined.pdf");
+      composer.composeOriginalPlusTextPages(pdfPages, cardsPagesByIndex, out);
       System.out.println("Done. All chapters written.");
 
     }
@@ -203,6 +216,7 @@ public class Main {
       String topic,
       String chapterTitle,
       int pageIndexInChapter,
+      int pageNr,
       int chunkCount,
       Page page,
       ProgressTracker tracker
@@ -229,8 +243,8 @@ public class Main {
 
       synchronized (System.out) {
         System.out.printf(
-            "START idx=%d/%d chapter='%s' inflight=%d server=%d url=%s%n",
-            (pageIndexInChapter + 1), chunkCount, chapterTitle, nowInflight,
+            "START idx=%d/%d pageNr=%d chapter='%s' inflight=%d server=%d url=%s%n",
+            (pageIndexInChapter + 1), chunkCount, pageNr, chapterTitle, nowInflight,
             serverIndex, llm.getUrl()
         );
       }
@@ -251,7 +265,7 @@ public class Main {
 
               tracker.finishPage(metrics);
 
-              return new PageResult(pageIndexInChapter, cardStrings, millis, metrics);
+              return new PageResult(pageIndexInChapter, pageNr, cardStrings, millis, metrics);
             } finally {
               // IMPORTANT: release the server permit no matter what
               permits.release(serverIndex);
@@ -280,6 +294,7 @@ public class Main {
 
   private record PageResult(
       int index,
+      int pageNr,
       List<String> cards,
       long millis,
       LlmMetrics metrics
@@ -299,7 +314,7 @@ public class Main {
       all.add(i);
     }
     java.util.Collections.shuffle(all);
-    return all.subList(0, n);
+    return all.subList(0, n).stream().sorted().toList();
   }
 
   private static <T> List<T> selectByIndex(List<T> source, List<Integer> indexes) {

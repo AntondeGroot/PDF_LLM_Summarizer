@@ -25,14 +25,14 @@ public class ParsedPDF {
     tableOfContent = convert(TOC.toString());
 
     // determine content without TOC
-    pages = pages.subList(TOC_end+1, pages.size());
+    pages = pages.subList(TOC_end+1, pages.size());// pages might still contain an About section between TOC and the First Chapter.
     pages = PDFUtil.getStringPagesWithoutTOC(pages, tableOfContent);
     tableOfContent.getLast().end = pages.size(); // this value was not yet determined, and there is not yet a good way to determine it.
     List<Page> pages3 = new ArrayList<>();
     offset = -tableOfContent.getFirst().start;
 
     int chapterIdx = 0;
-    Chapter current = tableOfContent.getFirst();
+    Chapter currentChapter = tableOfContent.getFirst();
     for (int i = 0; i < pages.size(); i++) {
       int pdfPageNr = i + 1;
 
@@ -41,20 +41,21 @@ public class ParsedPDF {
         int nextPdfStart = tableOfContent.get(chapterIdx + 1).start + offset;
         if (pdfPageNr >= nextPdfStart) {
           chapterIdx++;
-          current = tableOfContent.get(chapterIdx);
+          currentChapter = tableOfContent.get(chapterIdx);
         } else {
           break;
         }
       }
 
       Page page = new Page(pages.get(i));
+      page.setPageNr(i);
 
-      int currentPdfStart = current.start + offset;
-      int currentPdfEnd   = current.end + offset;
+      int currentPdfStart = currentChapter.start + offset;
+      int currentPdfEnd   = currentChapter.end + offset;
 
       // Only attach chapter if we're within the mapped range
       if (pdfPageNr >= currentPdfStart && pdfPageNr <= currentPdfEnd) {
-        page.chapter = current.title;
+        page.chapter = currentChapter.header;
         pages3.add(page);
       }
     }

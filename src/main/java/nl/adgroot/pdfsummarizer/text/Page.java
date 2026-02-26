@@ -2,6 +2,7 @@ package nl.adgroot.pdfsummarizer.text;
 
 public class Page {
   public String chapter;
+  public int pageNr;
   public String content;
   public String contextBefore;
   public String contextAfter;
@@ -12,6 +13,14 @@ public class Page {
 
   public void setContextBefore(String context){
     contextBefore = context;
+  }
+
+  public void setPageNr(int pageNr){
+    this.pageNr = pageNr;
+  }
+
+  public int getPageNr(){
+    return pageNr;
   }
 
   public void setContextAfter(String context){
@@ -42,6 +51,6 @@ public class Page {
 
   @Override
   public String toString() {
-    return "chapter: "+chapter+", content: "+content;
+    return "chapter: "+chapter+", pageNr: "+pageNr+", content: "+content;
   }
 }
