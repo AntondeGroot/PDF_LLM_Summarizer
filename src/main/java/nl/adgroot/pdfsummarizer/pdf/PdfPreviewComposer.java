@@ -4,10 +4,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-
 import java.util.Map;
+
 import nl.adgroot.pdfsummarizer.notes.CardsPage;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -21,33 +20,47 @@ public class PdfPreviewComposer {
 
   private static final String DEFAULT_FONT_RESOURCE = "/fonts/JetBrains/JetBrainsMono-Regular.ttf";
 
+  /**
+   * Builds a preview PDF by iterating the selected original pages IN ORDER and, for each
+   * selected page index i, optionally appending the notes page from cardsPagesByIndex.get(i).
+   * <p>
+   * Minimal fix for your bug:
+   * - Do NOT iterate sorted map keys and do NOT use n = min(pdfPages.size(), map.size()).
+   * - The map is keyed by *selected content index* (0..n-1) after preview selection.
+   * - Iterating pdfPages by index ensures non-random and random selection both produce
+   *   consistent output (e.g. 5 selected pages -> 10 output pages when notes exist for all 5).
+   */
   public void composeOriginalPlusTextPages(
       List<PDDocument> pdfPages,
-      Map<Integer, CardsPage> parsedTextPages,
+      Map<Integer, CardsPage> cardsPagesByIndex,
       Path outputPdf
   ) throws IOException {
 
-    int n = Math.min(pdfPages.size(), parsedTextPages.size());
-
-    List<Integer> sortedKeys = parsedTextPages.keySet().stream().sorted().toList();
     try (PDDocument out = new PDDocument()) {
 
-      // Load the font ONCE into the SAME document we will save
+      // Load the font ONCE into the SAME document we will save (unchanged)
       PDFont font = loadFont(out, DEFAULT_FONT_RESOURCE);
 
-      for (int i = 0; i < n; i++) {
+      for (int i = 0; i < pdfPages.size(); i++) {
+        PDDocument single = pdfPages.get(i);
+        if (single == null || single.getNumberOfPages() == 0) continue;
 
-        PDPage original = pdfPages.get(i).getPage(0);
+        // 1) original
+        PDPage original = single.getPage(0);
         out.importPage(original);
 
-        PDRectangle mediaBox = original.getMediaBox();
-        PDPage textPage = new PDPage(mediaBox);
-        out.addPage(textPage);
+        // 2) notes for this selected index (if present)
+        CardsPage notes = cardsPagesByIndex.get(i);
+        if (notes != null && notes.hasContent()) {
+          PDRectangle mediaBox = original.getMediaBox();
+          PDPage textPage = new PDPage(mediaBox);
+          out.addPage(textPage);
 
-        String s = parsedTextPages.get(sortedKeys.get(i)).content;
-        s = sortedKeys.get(i) + s;
-        System.out.println(debugNonAscii("ABOUT TO WRITE: " + s));
-        writeWrappedText(out, textPage, s, font);
+          String s = notes.content; // keep your existing rendering behavior
+          s = i + s;                // keep your existing debug prefix behavior
+          System.out.println(debugNonAscii("ABOUT TO WRITE: " + s));
+          writeWrappedText(out, textPage, s, font);
+        }
       }
 
       out.save(outputPdf.toFile());
@@ -94,7 +107,6 @@ public class PdfPreviewComposer {
       for (String line : wrapPreserveSpaces(safe, font, fontSize, maxWidth)) {
         if (y < margin) break;
 
-        // PDF content streams can't handle some control chars; keep it safe
         cs.showText(line);
         cs.newLineAtOffset(0, -leading);
         y -= leading;
@@ -137,14 +149,14 @@ public class PdfPreviewComposer {
         }
         inWs = ws;
       }
-      if (tok.length() > 0) tokens.add(tok.toString());
+      if (!tok.isEmpty()) tokens.add(tok.toString());
 
       StringBuilder line = new StringBuilder();
       for (String t : tokens) {
         String candidate = line.toString() + t;
         float w = font.getStringWidth(candidate) / 1000f * fontSize;
 
-        if (w <= maxWidth || line.length() == 0) {
+        if (w <= maxWidth || line.isEmpty()) {
           line.setLength(0);
           line.append(candidate);
         } else {
@@ -175,7 +187,7 @@ public class PdfPreviewComposer {
       char c = token.charAt(i);
       String candidate = line.toString() + c;
       float w = font.getStringWidth(candidate) / 1000f * fontSize;
-      if (w <= maxWidth || line.length() == 0) {
+      if (w <= maxWidth || line.isEmpty()) {
         line.append(c);
       } else {
         out.add(line.toString());
@@ -183,7 +195,7 @@ public class PdfPreviewComposer {
         line.append(c);
       }
     }
-    if (line.length() > 0) out.add(line.toString());
+    if (!line.isEmpty()) out.add(line.toString());
     return out;
   }
 
