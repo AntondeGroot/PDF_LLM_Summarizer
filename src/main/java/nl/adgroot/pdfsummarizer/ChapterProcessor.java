@@ -29,9 +29,7 @@ public class ChapterProcessor {
    * - waits for all pages
    * - orders results by page index in chapter
    * - writes the chapter CardsPage on writerPool
-   * - stores the CardsPage into cardsPagesByIndex for preview composition
-   *
-   * Returns a future that completes when the chapter has been written (or fails).
+   * - fills cardsPagesByIndex with ONE CardsPage PER SELECTED PAGE (keyed by content index)
    */
   public CompletableFuture<Void> processChapterAsync(
       Chapter chapter,
@@ -55,12 +53,12 @@ public class ChapterProcessor {
 
     System.out.println("Scheduling chapter: " + chapterHeader);
 
-    // Prepare chapter container up front
-    CardsPage cardsPage = new CardsPage();
-    cardsPage.addChapter(chapterHeader);
-    cardsPage.addTopic(topic);
+    // Chapter container (for writing the chapter file)
+    CardsPage chapterCards = new CardsPage();
+    chapterCards.addChapter(chapterHeader);
+    chapterCards.addTopic(topic);
 
-    // Pages for this chapter (keep original order from ParsedPDF)
+    // Pages for this chapter
     List<Page> pagesInChapter = parsedPdf.getContent()
         .stream()
         .filter(p -> p.chapter.equals(chapterHeader))
@@ -69,7 +67,7 @@ public class ChapterProcessor {
     List<CompletableFuture<PageResult>> pageFutures = new ArrayList<>(pagesInChapter.size());
 
     for (int i = 0; i < pagesInChapter.size(); i++) {
-      int pageIndexInChapter = i; // stable for ordering
+      int pageIndexInChapter = i;
       Page page = pagesInChapter.get(i);
       int pageNr = page.pageNr;
 
@@ -103,27 +101,39 @@ public class ChapterProcessor {
       pageFutures.add(pf);
     }
 
-    // When this chapter's pages are all finished, write it (writerPool).
     return CompletableFuture.allOf(pageFutures.toArray(new CompletableFuture[0]))
         .thenApply(v -> pageFutures.stream()
-            .map(CompletableFuture::join) // safe after allOf
+            .map(CompletableFuture::join)
             .sorted(Comparator.comparingInt(PageResult::index))
             .toList()
         )
         .thenAcceptAsync(results -> {
+
+          // 1) Build the chapter cards (for file output)
           for (PageResult r : results) {
             for (String card : r.cards()) {
-              cardsPage.addCard(card);
+              chapterCards.addCard(card);
             }
           }
 
+          // 2) FIX: Build preview notes per PAGE INDEX (0..n-1),
+          // not per chapter. This makes preview always 2*n pages.
+          for (PageResult r : results) {
+            int contentIndex = indexOfPageNr(parsedPdf, r.pageNr());
+            if (contentIndex < 0) continue;
+
+            CardsPage perPage = new CardsPage();
+            perPage.addTopic(topic);
+            perPage.addChapter(chapterHeader);
+            for (String card : r.cards()) perPage.addCard(card);
+
+            cardsPagesByIndex.put(contentIndex, perPage);
+          }
+
+          // 3) Write chapter output file
           try {
-            if (cardsPage.hasContent()) {
-              // Keep your existing preview mapping behavior (first result pageNr)
-              cardsPagesByIndex.put(results.getFirst().pageNr(), cardsPage);
-
-              writer.writeCard(outDir, cardsPage);
-
+            if (chapterCards.hasContent()) {
+              writer.writeCard(outDir, chapterCards);
               synchronized (System.out) {
                 System.out.println("WROTE chapter: " + chapterHeader + " -> " + outDir.toAbsolutePath());
               }
@@ -131,6 +141,20 @@ public class ChapterProcessor {
           } catch (IOException e) {
             throw new RuntimeException(e);
           }
+
         }, writerPool);
+  }
+
+  /**
+   * Find the index (0..content.size-1) of a page by pageNr.
+   * In preview mode, parsedPdf.getContent() has already been trimmed to the selected pages,
+   * so these indexes match the pdfPages list used for composing the preview PDF.
+   */
+  private static int indexOfPageNr(ParsedPDF parsedPdf, int pageNr) {
+    List<Page> content = parsedPdf.getContent();
+    for (int i = 0; i < content.size(); i++) {
+      if (content.get(i).pageNr == pageNr) return i;
+    }
+    return -1;
   }
 }
