@@ -1,16 +1,14 @@
 package nl.adgroot.pdfsummarizer;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
-import nl.adgroot.pdfsummarizer.PagePipeline.PageResult;
+
 import nl.adgroot.pdfsummarizer.config.AppConfig;
 import nl.adgroot.pdfsummarizer.config.ConfigLoader;
 import nl.adgroot.pdfsummarizer.llm.OllamaClient;
@@ -25,7 +23,6 @@ import nl.adgroot.pdfsummarizer.pdf.PdfBoxTextExtractor;
 import nl.adgroot.pdfsummarizer.pdf.PdfPreviewComposer;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplate;
 import nl.adgroot.pdfsummarizer.text.Chapter;
-import nl.adgroot.pdfsummarizer.text.Page;
 import org.apache.pdfbox.pdmodel.PDDocument;
 
 public class Main {
@@ -48,21 +45,23 @@ public class Main {
     String topic = filenameToTopic(pdfPath.getFileName().toString());
     NotesWriter writer = new NotesWriter();
     PdfPreviewComposer composer = new PdfPreviewComposer();
+
     List<OllamaClient> llms = OllamaClientsFactory.create(cfg.ollama);
     PagePipeline pipeline = new PagePipeline();
+    ChapterProcessor chapterProcessor = new ChapterProcessor();
 
     int servers = Math.max(1, cfg.ollama.servers);
     int perServerMax = Math.max(1, cfg.ollama.concurrency);
     ServerPermitPool permitPool = new ServerPermitPool(servers, perServerMax, true);
 
     PromptTemplate promptTemplate = PromptTemplate.load(Paths.get(
-        Objects.requireNonNull(Main.class.getClassLoader().getResource("prompt.txt")).toURI()));
+        Objects.requireNonNull(Main.class.getClassLoader().getResource("prompt.txt")).toURI()
+    ));
 
     try (AppExecutors exec = AppExecutors.create(cfg)) {
-      // Separate pool for waiting on permits (avoid blocking cpuPoolExecutor)
       ExecutorService permitPoolExecutor = exec.permitPoolExecutor();
-      ExecutorService cpuPoolExecutor = exec.cpuPool(); // for parsing
-      ExecutorService writerPool = exec.writerPool(); // Single writer thread: chapter files are written as soon as that chapter completes
+      ExecutorService cpuPoolExecutor = exec.cpuPool();
+      ExecutorService writerPool = exec.writerPool();
 
       // read PDF
       List<String> pagesWithTOC = extractor.extractPages(pdfPath);
@@ -81,13 +80,9 @@ public class Main {
         int total = parsedPdf.getContent().size();
         int n = Math.min(cfg.preview.nrPages, total);
 
-        List<Integer> selectedIndexes;
-
-        if (cfg.preview.randomPages) {
-          selectedIndexes = randomIndexes(total, n);
-        } else {
-          selectedIndexes = firstIndexes(n);
-        }
+        List<Integer> selectedIndexes = cfg.preview.randomPages
+            ? randomIndexes(total, n)
+            : firstIndexes(n);
 
         System.out.println("selected indexes for preview are: " + selectedIndexes);
         System.out.println("pdfpages size: " + pdfPages.size() + ", parsedPdf size: " + parsedPdf.getContent().size());
@@ -107,89 +102,28 @@ public class Main {
       // For each chapter we create a "write when done" future.
       List<CompletableFuture<Void>> chapterWrites = new ArrayList<>();
 
+      Path outDir = Path.of("/Users/adgroot/Documents");
+
       for (Chapter chapter : parsedPdf.getTableOfContent()) {
-        final String chapterHeader = chapter.header;
+        CompletableFuture<Void> writeFuture = chapterProcessor.processChapterAsync(
+            chapter,
+            parsedPdf,
+            topic,
+            pipeline,
+            llms,
+            permitPool,
+            permitPoolExecutor,
+            cpuPoolExecutor,
+            writerPool,
+            promptTemplate,
+            cfg,
+            tracker,
+            writer,
+            outDir,
+            cardsPagesByIndex
+        );
 
-        System.out.println("Scheduling chapter: " + chapterHeader);
-
-        // Prepare chapter container up front
-        CardsPage cardsPage = new CardsPage();
-        cardsPage.addChapter(chapterHeader);
-        cardsPage.addTopic(topic);
-
-        // Pages for this chapter (keep original order from ParsedPDF)
-        List<Page> pagesInChapter = parsedPdf.getContent()
-            .stream()
-            .filter(p -> p.chapter.equals(chapterHeader))
-            .toList();
-
-        List<CompletableFuture<PageResult>> pageFutures = new ArrayList<>(pagesInChapter.size());
-
-        for (int i = 0; i < pagesInChapter.size(); i++) {
-          int pageIndexInChapter = i; // stable for ordering
-          Page page = pagesInChapter.get(i);
-          int pageNr = page.pageNr;
-
-          CompletableFuture<PageResult> pf = pipeline.processPageAsync(
-              llms,
-              permitPool,
-              permitPoolExecutor,
-              cpuPoolExecutor,
-              promptTemplate,
-              cfg,
-              topic,
-              chapterHeader,
-              pageIndexInChapter,
-              pageNr,
-              pagesInChapter.size(),
-              page,
-              tracker
-          ).whenComplete((res, ex) -> {
-            if (ex != null) {
-              synchronized (System.out) {
-                System.out.println("Page task failed in chapter '" + chapterHeader + "': " + ex);
-              }
-            } else {
-              System.out.println(res.cards());
-              synchronized (System.out) {
-                System.out.println(tracker.formatStatus(res.millis()));
-              }
-            }
-          });
-
-          pageFutures.add(pf);
-        }
-
-        // When this chapter's pages are all finished, write it (writerPool).
-        CompletableFuture<Void> chapterWrite =
-            CompletableFuture.allOf(pageFutures.toArray(new CompletableFuture[0]))
-                .thenApply(v -> pageFutures.stream()
-                    .map(CompletableFuture::join) // safe after allOf
-                    .sorted(Comparator.comparingInt(PageResult::index))
-                    .toList()
-                )
-                .thenAcceptAsync(results -> {
-                  for (PageResult r : results) {
-                    for (String card : r.cards()) {
-                      cardsPage.addCard(card);
-                    }
-                  }
-
-                  Path outDir = Path.of("/Users/adgroot/Documents");
-                  try {
-                    if (cardsPage.hasContent()) {
-                      cardsPagesByIndex.put(results.getFirst().pageNr(), cardsPage);
-                      writer.writeCard(outDir, cardsPage);
-                      synchronized (System.out) {
-                        System.out.println("WROTE chapter: " + chapterHeader + " -> " + outDir.toAbsolutePath());
-                      }
-                    }
-                  } catch (IOException e) {
-                    throw new RuntimeException(e);
-                  }
-                }, writerPool);
-
-        chapterWrites.add(chapterWrite);
+        chapterWrites.add(writeFuture);
       }
 
       // Wait until ALL chapter writes are complete
@@ -198,6 +132,7 @@ public class Main {
       // preview
       Path out = Path.of("/Users/adgroot/Documents/preview-combined.pdf");
       composer.composeOriginalPlusTextPages(pdfPages, cardsPagesByIndex, out);
+
       System.out.println("Done. All chapters written.");
     }
   }
@@ -226,7 +161,7 @@ public class Main {
 
   private static <T> List<T> selectByIndex(List<T> source, List<Integer> indexes) {
     return indexes.stream()
-        .sorted() // keep original order for predictable flow
+        .sorted()
         .map(source::get)
         .toList();
   }
