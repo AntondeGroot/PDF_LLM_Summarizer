@@ -4,7 +4,7 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class CardParser {
+public class DefaultCardsParser implements CardsParser {
 
   // splits on a line containing exactly ---
   private static final Pattern SPLIT = Pattern.compile("(?m)^---\\s*$");
@@ -12,6 +12,7 @@ public class CardParser {
   // tries to find YAML frontmatter title: ...
   private static final Pattern TITLE = Pattern.compile("(?m)^title:\\s*(.+)\\s*$");
 
+  @Override
   public List<Card> parse(String markdown) {
     if (markdown == null || markdown.isBlank()) return List.of();
 
