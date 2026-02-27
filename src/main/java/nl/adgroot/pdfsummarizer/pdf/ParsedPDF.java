@@ -1,6 +1,6 @@
 package nl.adgroot.pdfsummarizer.pdf;
 
-import static nl.adgroot.pdfsummarizer.text.TableOfContentConverter.convert;
+import static nl.adgroot.pdfsummarizer.pdf.TableOfContentConverter.convert;
 
 import java.util.ArrayList;
 import java.util.List;

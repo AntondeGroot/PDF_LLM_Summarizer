@@ -56,15 +56,18 @@ public class PDFUtil {
   }
 
   static int getTableOfContentFirstPage(List<String> pages) {
-    for (int i = 0; i < 20; i++) {
-      if(i>pages.size()-1){
-        throw new TableOfContentsException("Could not find table of contents");
-      }
-
+    int upperBoundTableOfContents = Math.min(pages.size(), 10);
+    for (int i = 0; i < upperBoundTableOfContents; i++) {
       if (pages.get(i).toLowerCase().contains("table of contents")) {
         return i;
       }
     }
+    for (int i = 0; i < upperBoundTableOfContents; i++) {
+      if (pages.get(i).toLowerCase().contains("contents")) {
+        return i;
+      }
+    }
+
     throw new TableOfContentsException("Could not find table of contents");
   }
 
