@@ -5,7 +5,7 @@ import java.time.Instant;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
-import nl.adgroot.pdfsummarizer.llm.LlmMetrics;
+import nl.adgroot.pdfsummarizer.llm.records.LlmMetrics;
 
 public class ProgressTracker {
   private final int totalPages;

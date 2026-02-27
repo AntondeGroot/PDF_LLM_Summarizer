@@ -8,6 +8,8 @@ import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import nl.adgroot.pdfsummarizer.config.AppConfig;
+import nl.adgroot.pdfsummarizer.llm.records.LlmMetrics;
+import nl.adgroot.pdfsummarizer.llm.records.LlmResult;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Dispatcher;
