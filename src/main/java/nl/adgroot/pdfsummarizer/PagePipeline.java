@@ -13,7 +13,8 @@ import nl.adgroot.pdfsummarizer.llm.records.LlmMetrics;
 import nl.adgroot.pdfsummarizer.llm.OllamaClient;
 import nl.adgroot.pdfsummarizer.llm.ServerPermitPool;
 import nl.adgroot.pdfsummarizer.notes.Card;
-import nl.adgroot.pdfsummarizer.notes.CardParser;
+import nl.adgroot.pdfsummarizer.notes.CardsParser;
+import nl.adgroot.pdfsummarizer.notes.DefaultCardsParser;
 import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplate;
 import nl.adgroot.pdfsummarizer.text.Page;
@@ -30,6 +31,18 @@ public class PagePipeline {
       long millis,
       LlmMetrics metrics
   ) {}
+
+  private final CardsParser cardsParser;
+
+  /** Production default */
+  public PagePipeline() {
+    this(new DefaultCardsParser());
+  }
+
+  /** Injectable for tests / alternative parsers */
+  public PagePipeline(CardsParser cardsParser) {
+    this.cardsParser = cardsParser;
+  }
 
   public CompletableFuture<PageResult> processPageAsync(
       List<OllamaClient> llms,
@@ -79,8 +92,7 @@ public class PagePipeline {
               String md = result.response();
               LlmMetrics metrics = result.metrics();
 
-              CardParser parser = new CardParser();
-              List<Card> cards = parser.parse(md);
+              List<Card> cards = cardsParser.parse(md);
 
               List<String> cardStrings = new ArrayList<>(cards.size());
               for (Card c : cards) cardStrings.add(c.toString());

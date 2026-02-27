@@ -1,14 +1,10 @@
 package nl.adgroot.pdfsummarizer.notes;
 
-public class Card {
-  public final String title;
-  public final String markdown;
+import org.jetbrains.annotations.NotNull;
 
-  public Card(String title, String markdown) {
-    this.title = title;
-    this.markdown = markdown;
-  }
+public record Card(String title, String markdown) {
 
+  @NotNull
   @Override
   public String toString() {
     return markdown;
