@@ -3,25 +3,19 @@ package nl.adgroot.pdfsummarizer;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicInteger;
-
+import nl.adgroot.pdfsummarizer.PagePipeline.PageResult;
 import nl.adgroot.pdfsummarizer.config.AppConfig;
 import nl.adgroot.pdfsummarizer.config.ConfigLoader;
-import nl.adgroot.pdfsummarizer.llm.LlmMetrics;
 import nl.adgroot.pdfsummarizer.llm.OllamaClient;
 import nl.adgroot.pdfsummarizer.llm.OllamaClientsFactory;
 import nl.adgroot.pdfsummarizer.llm.ServerPermitPool;
-import nl.adgroot.pdfsummarizer.notes.Card;
-import nl.adgroot.pdfsummarizer.notes.CardParser;
 import nl.adgroot.pdfsummarizer.notes.CardsPage;
 import nl.adgroot.pdfsummarizer.notes.NotesWriter;
 import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
@@ -35,9 +29,6 @@ import nl.adgroot.pdfsummarizer.text.Page;
 import org.apache.pdfbox.pdmodel.PDDocument;
 
 public class Main {
-
-  // Debug counter to verify parallelism (in-flight page pipelines)
-  private static final AtomicInteger IN_FLIGHT = new AtomicInteger(0);
 
   public static void main(String[] args) throws Exception {
 
@@ -58,6 +49,7 @@ public class Main {
     NotesWriter writer = new NotesWriter();
     PdfPreviewComposer composer = new PdfPreviewComposer();
     List<OllamaClient> llms = OllamaClientsFactory.create(cfg.ollama);
+    PagePipeline pipeline = new PagePipeline();
 
     int servers = Math.max(1, cfg.ollama.servers);
     int perServerMax = Math.max(1, cfg.ollama.concurrency);
@@ -66,7 +58,7 @@ public class Main {
     PromptTemplate promptTemplate = PromptTemplate.load(Paths.get(
         Objects.requireNonNull(Main.class.getClassLoader().getResource("prompt.txt")).toURI()));
 
-    try(AppExecutors exec = AppExecutors.create(cfg)) {
+    try (AppExecutors exec = AppExecutors.create(cfg)) {
       // Separate pool for waiting on permits (avoid blocking cpuPoolExecutor)
       ExecutorService permitPoolExecutor = exec.permitPoolExecutor();
       ExecutorService cpuPoolExecutor = exec.cpuPool(); // for parsing
@@ -77,8 +69,14 @@ public class Main {
       List<PDDocument> pdfPages = pdfSplitter.splitInMemory(pdfPath);
 
       ParsedPDF parsedPdf = new ParsedPDF(pagesWithTOC, cfg.cards.nrOfLinesUsedForContext);
-      pdfPages = pdfPages.subList(pdfPages.size() - parsedPdf.getContent().size() - parsedPdf.getTableOfContent().getFirst().start, pdfPages.size());
+
+      // Keep only actual content pages aligned with parsedPdf.getContent()
+      pdfPages = pdfPages.subList(
+          pdfPages.size() - parsedPdf.getContent().size() - parsedPdf.getTableOfContent().getFirst().start,
+          pdfPages.size()
+      );
       pdfPages = pdfPages.subList(0, parsedPdf.getContent().size());
+
       if (cfg.preview.enabled) {
         int total = parsedPdf.getContent().size();
         int n = Math.min(cfg.preview.nrPages, total);
@@ -91,8 +89,8 @@ public class Main {
           selectedIndexes = firstIndexes(n);
         }
 
-        System.out.println("selected indexes for preview are: "+selectedIndexes);
-        System.out.println("pdfpages size: "+pdfPages.size()+", parsedPdf size: "+parsedPdf.getContent().size());
+        System.out.println("selected indexes for preview are: " + selectedIndexes);
+        System.out.println("pdfpages size: " + pdfPages.size() + ", parsedPdf size: " + parsedPdf.getContent().size());
 
         pdfPages = selectByIndex(pdfPages, selectedIndexes);
         parsedPdf.setContent(selectByIndex(parsedPdf.getContent(), selectedIndexes));
@@ -132,7 +130,7 @@ public class Main {
           Page page = pagesInChapter.get(i);
           int pageNr = page.pageNr;
 
-          CompletableFuture<PageResult> pf = processPageAsync(
+          CompletableFuture<PageResult> pf = pipeline.processPageAsync(
               llms,
               permitPool,
               permitPoolExecutor,
@@ -148,10 +146,14 @@ public class Main {
               tracker
           ).whenComplete((res, ex) -> {
             if (ex != null) {
-              synchronized (System.out) {System.out.println("Page task failed in chapter '" + chapterHeader + "': " + ex);}
+              synchronized (System.out) {
+                System.out.println("Page task failed in chapter '" + chapterHeader + "': " + ex);
+              }
             } else {
-              System.out.println(res.cards);
-              synchronized (System.out) {System.out.println(tracker.formatStatus(res.millis()));}
+              System.out.println(res.cards());
+              synchronized (System.out) {
+                System.out.println(tracker.formatStatus(res.millis()));
+              }
             }
           });
 
@@ -175,10 +177,12 @@ public class Main {
 
                   Path outDir = Path.of("/Users/adgroot/Documents");
                   try {
-                    if(cardsPage.hasContent()){
+                    if (cardsPage.hasContent()) {
                       cardsPagesByIndex.put(results.getFirst().pageNr(), cardsPage);
                       writer.writeCard(outDir, cardsPage);
-                      synchronized (System.out) {System.out.println("WROTE chapter: " + chapterHeader + " -> " + outDir.toAbsolutePath());}
+                      synchronized (System.out) {
+                        System.out.println("WROTE chapter: " + chapterHeader + " -> " + outDir.toAbsolutePath());
+                      }
                     }
                   } catch (IOException e) {
                     throw new RuntimeException(e);
@@ -195,110 +199,13 @@ public class Main {
       Path out = Path.of("/Users/adgroot/Documents/preview-combined.pdf");
       composer.composeOriginalPlusTextPages(pdfPages, cardsPagesByIndex, out);
       System.out.println("Done. All chapters written.");
-
     }
-  }
-
-  /**
-   * Full page pipeline:
-   * - render prompt
-   * - async HTTP call to Ollama (OkHttp enqueue inside OllamaClient)
-   * - parse markdown on cpuPoolExecutor
-   * - return PageResult (used for per-chapter ordering)
-   */
-  private static CompletableFuture<PageResult> processPageAsync(
-      List<OllamaClient> llms,
-      ServerPermitPool permits,
-      ExecutorService permitPoolExecutor,
-      ExecutorService cpuPoolExecutor,
-      PromptTemplate promptTemplate,
-      AppConfig cfg,
-      String topic,
-      String chapterTitle,
-      int pageIndexInChapter,
-      int pageNr,
-      int chunkCount,
-      Page page,
-      ProgressTracker tracker
-  ) {
-    long startNs = System.nanoTime();
-    int nowInflight = IN_FLIGHT.incrementAndGet();
-
-    String prompt = promptTemplate.render(Map.of(
-        "topic", topic,
-        "topicTag", topic.toLowerCase().replace(" ", "-"),
-        "section", chapterTitle,
-        "chunkIndex", String.valueOf(pageIndexInChapter + 1),
-        "chunkCount", String.valueOf(chunkCount),
-        "created", LocalDate.now().toString(),
-        "maxCards", String.valueOf(cfg.cards.maxCardsPerChunk),
-        "content", page.toString()
-    ));
-
-    // Wait for whichever server is free (do NOT block cpuPoolExecutor)
-    CompletableFuture<Integer> serverIndexFuture = permits.acquireAnyAsync(permitPoolExecutor);
-
-    return serverIndexFuture.thenCompose(serverIndex -> {
-      OllamaClient llm = llms.get(serverIndex);
-
-      synchronized (System.out) {
-        System.out.printf(
-            "START idx=%d/%d pageNr=%d chapter='%s' inflight=%d server=%d url=%s%n",
-            (pageIndexInChapter + 1), chunkCount, pageNr, chapterTitle, nowInflight,
-            serverIndex, llm.getUrl()
-        );
-      }
-
-      return llm.generateAsync(prompt)
-          .thenApplyAsync(result -> {
-            try {
-              String md = result.response();
-              LlmMetrics metrics = result.metrics();
-
-              CardParser parser = new CardParser();
-              List<Card> cards = parser.parse(md);
-
-              List<String> cardStrings = new ArrayList<>(cards.size());
-              for (Card c : cards) cardStrings.add(c.toString());
-
-              long millis = (System.nanoTime() - startNs) / 1_000_000;
-
-              tracker.finishPage(metrics);
-
-              return new PageResult(pageIndexInChapter, pageNr, cardStrings, millis, metrics);
-            } finally {
-              // IMPORTANT: release the server permit no matter what
-              permits.release(serverIndex);
-            }
-          }, cpuPoolExecutor)
-          .whenComplete((res, ex) -> {
-            int leftInflight = IN_FLIGHT.decrementAndGet();
-            long millis = (System.nanoTime() - startNs) / 1_000_000;
-
-            synchronized (System.out) {
-              System.out.printf(
-                  "END   idx=%d/%d chapter='%s' took=%dms inflight=%d server=%d %s%n",
-                  (pageIndexInChapter + 1), chunkCount, chapterTitle, millis, leftInflight,
-                  serverIndex,
-                  (ex != null ? "ERROR=" + ex : "")
-              );
-            }
-          });
-    });
   }
 
   private static String filenameToTopic(String filename) {
     String noExt = filename.replaceAll("(?i)\\.pdf$", "");
     return noExt.replace('_', ' ').replace('-', ' ').trim();
   }
-
-  private record PageResult(
-      int index,
-      int pageNr,
-      List<String> cards,
-      long millis,
-      LlmMetrics metrics
-  ) {}
 
   private static List<Integer> firstIndexes(int n) {
     List<Integer> list = new ArrayList<>(n);

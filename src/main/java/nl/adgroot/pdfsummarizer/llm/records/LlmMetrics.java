@@ -1,4 +1,4 @@
-package nl.adgroot.pdfsummarizer.llm;
+package nl.adgroot.pdfsummarizer.llm.records;
 
 public record LlmMetrics(
     long totalDurationNs,

@@ -5,7 +5,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 
-public final class ServerPermitPool {
+public class ServerPermitPool {
 
   private final Semaphore[] permits;
 
