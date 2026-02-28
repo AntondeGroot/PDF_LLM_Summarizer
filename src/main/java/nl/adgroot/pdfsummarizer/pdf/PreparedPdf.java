@@ -10,5 +10,5 @@ import org.apache.pdfbox.pdmodel.PDDocument;
  */
 public record PreparedPdf(
     ParsedPDF parsed,
-    List<PDDocument> pdfPages
+    List<PdfObject> pdfPages
 ) {}

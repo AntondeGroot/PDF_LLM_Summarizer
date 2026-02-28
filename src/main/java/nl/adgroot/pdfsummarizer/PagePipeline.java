@@ -17,7 +17,6 @@ import nl.adgroot.pdfsummarizer.notes.CardsParser;
 import nl.adgroot.pdfsummarizer.notes.DefaultCardsParser;
 import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplate;
-import nl.adgroot.pdfsummarizer.text.Page;
 
 public class PagePipeline {
 
@@ -56,7 +55,7 @@ public class PagePipeline {
       int pageIndexInChapter,
       int pageNr,
       int chunkCount,
-      Page page,
+      String pageText,
       ProgressTracker tracker
   ) {
     long startNs = System.nanoTime();
@@ -70,7 +69,7 @@ public class PagePipeline {
         "chunkCount", String.valueOf(chunkCount),
         "created", LocalDate.now().toString(),
         "maxCards", String.valueOf(cfg.cards.maxCardsPerChunk),
-        "content", page.toString()
+        "content", pageText
     ));
 
     CompletableFuture<Integer> serverIndexFuture = permits.acquireAnyAsync(permitPoolExecutor);

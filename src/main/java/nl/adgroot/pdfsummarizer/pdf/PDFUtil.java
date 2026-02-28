@@ -2,16 +2,20 @@ package nl.adgroot.pdfsummarizer.pdf;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 import nl.adgroot.pdfsummarizer.text.Chapter;
 
 public class PDFUtil {
+
+  // ends with a page number (allow trailing whitespace)
+  private static final Pattern ENDS_WITH_PAGE_NR = Pattern.compile(".*\\s+\\d+\\s*$");
 
   /**
    * Heuristically determines whether the given page content represents a Table of Contents (TOC)
    * page.
    *
-   * <p>The method counts non-empty lines
-   * and checks whether at least 90% of them end with a page number.
+   * <p>The method counts non-empty lines and checks whether at least 90% of them end with a page
+   * number.
    *
    * @param page the textual content of a single PDF page
    * @return {@code true} if the page is likely a TOC page; {@code false} otherwise
@@ -27,17 +31,18 @@ public class PDFUtil {
     int tocMatches = 0;
 
     for (String rawLine : lines) {
-      String line = rawLine.trim();
+      if (rawLine == null) continue;
 
-      // Skip empty lines
+      // Normalize: remove control chars that can break regex matching in real PDFs
+      String line = rawLine.replaceAll("\\p{C}+", "").trim();
+
       if (line.isEmpty()) {
         continue;
       }
 
       totalRelevantLines++;
 
-      // Regex: ends with page number
-      if (line.matches(".*\\s+\\d+$")) {
+      if (ENDS_WITH_PAGE_NR.matcher(line).matches()) {
         tocMatches++;
       }
 
@@ -51,7 +56,6 @@ public class PDFUtil {
     }
 
     double ratio = (double) tocMatches / totalRelevantLines;
-
     return ratio >= 0.90;
   }
 
@@ -80,13 +84,20 @@ public class PDFUtil {
     throw new TableOfContentsException("Could not find end of table of contents");
   }
 
-
-  public static List<String> getStringPagesWithoutTOC(List<String> pagesRaw, List<Chapter> tableOfContents){
+  public static List<String> getStringPagesWithoutTOC(List<String> pagesRaw, List<Chapter> tableOfContents) {
     String firstChapter = tableOfContents.getFirst().header;
 
     for (int i = 0; i < pagesRaw.size(); i++) {
-      if(pagesRaw.get(i).contains(firstChapter)){
-        return pagesRaw.subList(i, pagesRaw.size()-1);
+      String page = pagesRaw.get(i);
+      if (page == null) continue;
+
+      // Do not start content on TOC-like pages (TOC often contains the chapter title)
+      if (isTableOfContentsPage(page)) {
+        continue;
+      }
+
+      if (page.contains(firstChapter)) {
+        return pagesRaw.subList(i, pagesRaw.size());
       }
     }
     return new ArrayList<>();
