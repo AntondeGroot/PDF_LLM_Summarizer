@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import nl.adgroot.pdfsummarizer.notes.CardsPage;
+import nl.adgroot.pdfsummarizer.notes.records.CardsPage;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -56,7 +56,7 @@ public class PdfPreviewComposer {
           PDPage textPage = new PDPage(mediaBox);
           out.addPage(textPage);
 
-          String s = notes.content; // keep your existing rendering behavior
+          String s = String.valueOf(notes.content()); // keep your existing rendering behavior
           s = i + s;                // keep your existing debug prefix behavior
           System.out.println(debugNonAscii("ABOUT TO WRITE: " + s));
           writeWrappedText(out, textPage, s, font);

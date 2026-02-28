@@ -12,7 +12,7 @@ import nl.adgroot.pdfsummarizer.config.AppConfig;
 import nl.adgroot.pdfsummarizer.llm.records.LlmMetrics;
 import nl.adgroot.pdfsummarizer.llm.OllamaClient;
 import nl.adgroot.pdfsummarizer.llm.ServerPermitPool;
-import nl.adgroot.pdfsummarizer.notes.Card;
+import nl.adgroot.pdfsummarizer.notes.records.Card;
 import nl.adgroot.pdfsummarizer.notes.CardsParser;
 import nl.adgroot.pdfsummarizer.notes.DefaultCardsParser;
 import nl.adgroot.pdfsummarizer.notes.ProgressTracker;

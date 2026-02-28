@@ -3,6 +3,7 @@ package nl.adgroot.pdfsummarizer.notes;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import nl.adgroot.pdfsummarizer.notes.records.Card;
 
 public class DefaultCardsParser implements CardsParser {
 
