@@ -2,7 +2,6 @@ package nl.adgroot.pdfsummarizer.pdf;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import nl.adgroot.pdfsummarizer.config.AppConfig;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -31,8 +30,10 @@ public class PdfPreparationService {
 
   /**
    * Align PDDocument pages to ParsedPDF content pages.
-   * */
-  private static List<PDDocument> alignPdfPagesToParsedContent(List<PDDocument> pdfPages, ParsedPDF parsedPdf) {
+   *
+   */
+  private static List<PDDocument> alignPdfPagesToParsedContent(List<PDDocument> pdfPages,
+      ParsedPDF parsedPdf) {
     int contentSize = parsedPdf.getContent().size();
     int tocStart = parsedPdf.getTableOfContent().getFirst().start;
 
@@ -49,52 +50,25 @@ public class PdfPreparationService {
       ParsedPDF parsedPdf,
       List<PDDocument> pdfPages
   ) {
-    if (!cfg.preview.enabled) {
-      return pdfPages;
-    }
+    PreviewSelectionService selector = new PreviewSelectionService();
 
     int total = parsedPdf.getContent().size();
-    int n = Math.min(cfg.preview.nrPages, total);
+    List<Integer> selectedIndexes = selector.selectIndexes(cfg, total);
 
-    List<Integer> selectedIndexes = cfg.preview.randomPages
-        ? randomIndexes(total, n)
-        : firstIndexes(n);
+    // If preview disabled, selectedIndexes == [0..total-1] and nothing changes.
+    if (cfg == null || cfg.preview == null || !cfg.preview.enabled) {
+      return pdfPages;
+    }
 
     System.out.println("selected indexes for preview are: " + selectedIndexes);
     System.out.println("pdfpages size: " + pdfPages.size()
         + ", parsedPdf size: " + parsedPdf.getContent().size());
 
-    List<PDDocument> selectedPdfPages = selectByIndex(pdfPages, selectedIndexes);
-    parsedPdf.setContent(selectByIndex(parsedPdf.getContent(), selectedIndexes));
+    List<PDDocument> selectedPdfPages = selector.selectByIndex(pdfPages, selectedIndexes);
+    parsedPdf.setContent(selector.selectByIndex(parsedPdf.getContent(), selectedIndexes));
 
     System.out.println("Preview mode: using pages " + selectedIndexes);
 
     return selectedPdfPages;
-  }
-
-  // ---------- preview helpers ----------
-
-  private static List<Integer> firstIndexes(int n) {
-    List<Integer> list = new ArrayList<>(n);
-    for (int i = 0; i < n; i++) {
-      list.add(i);
-    }
-    return list;
-  }
-
-  private static List<Integer> randomIndexes(int total, int n) {
-    List<Integer> all = new ArrayList<>(total);
-    for (int i = 0; i < total; i++) {
-      all.add(i);
-    }
-    java.util.Collections.shuffle(all);
-    return all.subList(0, n).stream().sorted().toList();
-  }
-
-  private static <T> List<T> selectByIndex(List<T> source, List<Integer> indexes) {
-    return indexes.stream()
-        .sorted()
-        .map(source::get)
-        .toList();
   }
 }
