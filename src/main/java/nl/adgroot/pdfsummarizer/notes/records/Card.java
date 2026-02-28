@@ -1,4 +1,4 @@
-package nl.adgroot.pdfsummarizer.notes;
+package nl.adgroot.pdfsummarizer.notes.records;
 
 import org.jetbrains.annotations.NotNull;
 

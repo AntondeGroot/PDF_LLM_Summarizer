@@ -5,11 +5,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import nl.adgroot.pdfsummarizer.notes.records.CardsPage;
 
 public class NotesWriter {
 
   public void writeCard(Path outDir, CardsPage cardsPage) throws IOException {
-    String fileName = safeFileName(cardsPage.topic+"-"+cardsPage.chapter) + ".md";
+    String fileName = safeFileName(cardsPage.topic()+"-"+cardsPage.chapter()) + ".md";
     Path target = uniquify(outDir.resolve(fileName));
     Files.writeString(target, cardsPage.toString(), StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
   }

@@ -8,7 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import nl.adgroot.pdfsummarizer.notes.CardsPage;
+import nl.adgroot.pdfsummarizer.notes.records.CardsPage;
 import nl.adgroot.pdfsummarizer.pdf.PdfPreviewComposer;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -34,9 +34,7 @@ class PdfPreviewComposerTest {
     // Notes for each page index 0..n-1
     Map<Integer, CardsPage> notesByIndex = new HashMap<>();
     for (int i = 0; i < n; i++) {
-      CardsPage cp = new CardsPage();
-      cp.addTopic("topic");
-      cp.addChapter("chapter");
+      CardsPage cp = new CardsPage("topic","chapter");
       cp.addCard("Card " + i);
       notesByIndex.put(i, cp);
     }
@@ -73,9 +71,7 @@ class PdfPreviewComposerTest {
     // Notes exist for exactly those indexes
     Map<Integer, CardsPage> notesByIndex = new HashMap<>();
     for (int i = 0; i < n; i++) {
-      CardsPage cp = new CardsPage();
-      cp.addTopic("topic");
-      cp.addChapter("chapter");
+      CardsPage cp = new CardsPage("topic","chapter");
       cp.addCard("Card for page " + i);
       notesByIndex.put(i, cp);
     }
@@ -116,9 +112,7 @@ class PdfPreviewComposerTest {
 
     // Simulate the old bug upstream: only ONE notes page exists (e.g., per chapter)
     Map<Integer, CardsPage> notesByIndex = new HashMap<>();
-    CardsPage only = new CardsPage();
-    only.addTopic("topic");
-    only.addChapter("chapter");
+    CardsPage only = new CardsPage("topic", "chapter");
     only.addCard("Only one notes page");
     notesByIndex.put(0, only);
 

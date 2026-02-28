@@ -13,7 +13,7 @@ import nl.adgroot.pdfsummarizer.PagePipeline.PageResult;
 import nl.adgroot.pdfsummarizer.config.AppConfig;
 import nl.adgroot.pdfsummarizer.llm.OllamaClient;
 import nl.adgroot.pdfsummarizer.llm.ServerPermitPool;
-import nl.adgroot.pdfsummarizer.notes.CardsPage;
+import nl.adgroot.pdfsummarizer.notes.records.CardsPage;
 import nl.adgroot.pdfsummarizer.notes.NotesWriter;
 import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
 import nl.adgroot.pdfsummarizer.pdf.ParsedPDF;
@@ -54,9 +54,7 @@ public class ChapterProcessor {
     System.out.println("Scheduling chapter: " + chapterHeader);
 
     // Chapter container (for writing the chapter file)
-    CardsPage chapterCards = new CardsPage();
-    chapterCards.addChapter(chapterHeader);
-    chapterCards.addTopic(topic);
+    CardsPage chapterCards = new CardsPage(topic, chapterHeader);
 
     // Pages for this chapter
     List<Page> pagesInChapter = parsedPdf.getContent()
@@ -122,9 +120,7 @@ public class ChapterProcessor {
             int contentIndex = indexOfPageNr(parsedPdf, r.pageNr());
             if (contentIndex < 0) continue;
 
-            CardsPage perPage = new CardsPage();
-            perPage.addTopic(topic);
-            perPage.addChapter(chapterHeader);
+            CardsPage perPage = new CardsPage(topic, chapterHeader);
             for (String card : r.cards()) perPage.addCard(card);
 
             cardsPagesByIndex.put(contentIndex, perPage);
