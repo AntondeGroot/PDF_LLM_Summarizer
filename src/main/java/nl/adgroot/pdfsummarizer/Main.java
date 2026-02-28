@@ -4,7 +4,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -14,17 +13,16 @@ import nl.adgroot.pdfsummarizer.config.ConfigLoader;
 import nl.adgroot.pdfsummarizer.llm.OllamaClient;
 import nl.adgroot.pdfsummarizer.llm.OllamaClientsFactory;
 import nl.adgroot.pdfsummarizer.llm.ServerPermitPool;
-import nl.adgroot.pdfsummarizer.notes.records.CardsPage;
 import nl.adgroot.pdfsummarizer.notes.NotesWriter;
 import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
 import nl.adgroot.pdfsummarizer.pdf.PdfBoxPdfSplitter;
 import nl.adgroot.pdfsummarizer.pdf.PdfBoxTextExtractor;
+import nl.adgroot.pdfsummarizer.pdf.PdfObject;
 import nl.adgroot.pdfsummarizer.pdf.PdfPreparationService;
 import nl.adgroot.pdfsummarizer.pdf.PdfPreviewComposer;
 import nl.adgroot.pdfsummarizer.pdf.PreparedPdf;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplate;
 import nl.adgroot.pdfsummarizer.text.Chapter;
-import org.apache.pdfbox.pdmodel.PDDocument;
 
 public class Main {
 
@@ -34,7 +32,6 @@ public class Main {
         Objects.requireNonNull(Main.class.getClassLoader().getResource("Learning Docker.pdf")).toURI()
     );
 
-    // read config
     Path configPath = Paths.get(
         Objects.requireNonNull(Main.class.getClassLoader().getResource("config.json")).toURI()
     );
@@ -67,23 +64,21 @@ public class Main {
       ExecutorService cpuPoolExecutor = exec.cpuPool();
       ExecutorService writerPool = exec.writerPool();
 
-      // load + align + preview-select
+      // load + align + preview-select -> returns PdfObjects
       PreparedPdf prepared = pdfPreparationService.loadAndPrepare(pdfPath, cfg);
       var parsedPdf = prepared.parsed();
-      List<PDDocument> pdfPages = prepared.pdfPages();
+      List<PdfObject> pages = prepared.pdfPages();
 
       int totalPages = parsedPdf.getContent().size();
       ProgressTracker tracker = new ProgressTracker(totalPages);
 
-      Map<Integer, CardsPage> cardsPagesByIndex = new java.util.concurrent.ConcurrentHashMap<>();
       List<CompletableFuture<Void>> chapterWrites = new ArrayList<>();
-
       Path outDir = Path.of("/Users/adgroot/Documents");
 
       for (Chapter chapter : parsedPdf.getTableOfContent()) {
         CompletableFuture<Void> writeFuture = chapterProcessor.processChapterAsync(
             chapter,
-            parsedPdf,
+            pages,
             topic,
             pipeline,
             llms,
@@ -95,8 +90,7 @@ public class Main {
             cfg,
             tracker,
             writer,
-            outDir,
-            cardsPagesByIndex
+            outDir
         );
 
         chapterWrites.add(writeFuture);
@@ -104,9 +98,11 @@ public class Main {
 
       CompletableFuture.allOf(chapterWrites.toArray(new CompletableFuture[0])).join();
 
-      // preview output
-      Path out = outDir.resolve("preview-combined.pdf");
-      composer.composeOriginalPlusTextPages(pdfPages, cardsPagesByIndex, out);
+      // preview output (only if enabled and combinePdfWithNotes)
+      if (cfg.preview.enabled && cfg.preview.combinePdfWithNotes) {
+        Path out = outDir.resolve("preview-combined.pdf");
+        composer.composeOriginalPlusTextPages(pages, out);
+      }
 
       System.out.println("Done. All chapters written.");
     }

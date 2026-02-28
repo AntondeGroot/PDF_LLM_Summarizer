@@ -1,14 +1,13 @@
 package nl.adgroot.pdfsummarizer;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
-import nl.adgroot.pdfsummarizer.notes.records.CardsPage;
+import nl.adgroot.pdfsummarizer.pdf.PdfObject;
 import nl.adgroot.pdfsummarizer.pdf.PdfPreviewComposer;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -18,36 +17,34 @@ import org.junit.jupiter.api.Test;
 class PdfPreviewComposerTest {
 
   @Test
-  void composeOriginalPlusTextPages_whenNotesExistForEachIndex_outputs2nPages() throws Exception {
+  void composeOriginalPlusTextPages_whenNotesExistForEachPage_outputs2nPages() throws Exception {
     PdfPreviewComposer composer = new PdfPreviewComposer();
 
     int n = 5;
 
-    // Build 5 single-page "original" documents
-    List<PDDocument> originals = new java.util.ArrayList<>();
+    List<PdfObject> pages = new ArrayList<>();
     for (int i = 0; i < n; i++) {
       PDDocument d = new PDDocument();
       d.addPage(new PDPage());
-      originals.add(d);
-    }
 
-    // Notes for each page index 0..n-1
-    Map<Integer, CardsPage> notesByIndex = new HashMap<>();
-    for (int i = 0; i < n; i++) {
-      CardsPage cp = new CardsPage("topic","chapter");
-      cp.addCard("Card " + i);
-      notesByIndex.put(i, cp);
+      PdfObject obj = new PdfObject(i, "chapter", d, "TEXT-" + i);
+      obj.setNotes("NOTE-" + i);
+      pages.add(obj);
     }
 
     Path out = Files.createTempFile("preview-", ".pdf");
 
-    composer.composeOriginalPlusTextPages(originals, notesByIndex, out);
+    try {
+      composer.composeOriginalPlusTextPages(pages, out);
 
-    try (PDDocument result = Loader.loadPDF(out.toFile())) {
-      assertEquals(2 * n, result.getNumberOfPages(),
-          "Expected exactly 2 pages per selected original page (original + notes)");
+      try (PDDocument result = Loader.loadPDF(out.toFile())) {
+        assertEquals(2 * n, result.getNumberOfPages(),
+            "Expected exactly 2 pages per page when every PdfObject has notes (original + notes)");
+      }
     } finally {
-      for (PDDocument d : originals) d.close();
+      for (PdfObject p : pages) {
+        try { p.getDocument().close(); } catch (Exception ignored) {}
+      }
       Files.deleteIfExists(out);
     }
   }
@@ -59,77 +56,111 @@ class PdfPreviewComposerTest {
     int total = 20;
     int n = 5;
 
-    // Create 20 original "pages" (each is a 1-page PDDocument)
-    List<PDDocument> originals = new java.util.ArrayList<>(total);
+    // Create total pages, but select first N
+    List<PdfObject> all = new ArrayList<>();
     for (int i = 0; i < total; i++) {
       PDDocument d = new PDDocument();
       d.addPage(new PDPage());
-      originals.add(d);
+      PdfObject obj = new PdfObject(i, "chapter", d, "TEXT-" + i);
+      all.add(obj);
     }
 
-    // Non-random selection would pick indexes [0..4]
-    // Notes exist for exactly those indexes
-    Map<Integer, CardsPage> notesByIndex = new HashMap<>();
+    List<PdfObject> selected = all.subList(0, n);
     for (int i = 0; i < n; i++) {
-      CardsPage cp = new CardsPage("topic","chapter");
-      cp.addCard("Card for page " + i);
-      notesByIndex.put(i, cp);
+      selected.get(i).setNotes("NOTE-" + i);
     }
-
-    // Now select the first N originals (this simulates your preview selection)
-    List<PDDocument> selectedOriginals = originals.subList(0, n);
 
     Path out = Files.createTempFile("preview-nonrandom-", ".pdf");
 
     try {
-      composer.composeOriginalPlusTextPages(selectedOriginals, notesByIndex, out);
+      composer.composeOriginalPlusTextPages(selected, out);
 
       try (PDDocument result = Loader.loadPDF(out.toFile())) {
         assertEquals(2 * n, result.getNumberOfPages(),
-            "Expected original+notes for each of the first N pages");
+            "Expected original+notes for each of the first N selected pages");
       }
     } finally {
-      for (PDDocument d : originals) {
-        try { d.close(); } catch (Exception ignored) {}
+      for (PdfObject p : all) {
+        try { p.getDocument().close(); } catch (Exception ignored) {}
       }
       Files.deleteIfExists(out);
     }
   }
 
   @Test
-  void composeOriginalPlusTextPages_whenNotesMissingForSomeIndexes_stillIncludesAllOriginals() throws Exception {
+  void composeOriginalPlusTextPages_whenNotesMissingForSomePages_includesAllOriginals_plusOnlyExistingNotes() throws Exception {
     PdfPreviewComposer composer = new PdfPreviewComposer();
 
     int n = 5;
 
-    // Build 5 single-page "original" documents
-    List<PDDocument> originals = new java.util.ArrayList<>();
+    List<PdfObject> pages = new ArrayList<>();
     for (int i = 0; i < n; i++) {
       PDDocument d = new PDDocument();
       d.addPage(new PDPage());
-      originals.add(d);
+      PdfObject obj = new PdfObject(i, "chapter", d, "TEXT-" + i);
+      pages.add(obj);
     }
 
-    // Simulate the old bug upstream: only ONE notes page exists (e.g., per chapter)
-    Map<Integer, CardsPage> notesByIndex = new HashMap<>();
-    CardsPage only = new CardsPage("topic", "chapter");
-    only.addCard("Only one notes page");
-    notesByIndex.put(0, only);
+    // Only one page has notes
+    pages.get(0).setNotes("ONLY-NOTES");
 
     Path out = Files.createTempFile("preview-missing-", ".pdf");
 
     try {
-      composer.composeOriginalPlusTextPages(originals, notesByIndex, out);
+      composer.composeOriginalPlusTextPages(pages, out);
 
       try (PDDocument result = Loader.loadPDF(out.toFile())) {
-        // Expected: all originals are still included, plus notes pages that exist.
-        // => 5 originals + 1 notes = 6 pages.
+        // originals = n, notes = 1 => total n+1
         assertEquals(n + 1, result.getNumberOfPages(),
-            "Should include all original pages even if notes are missing for some indexes");
+            "Should include all originals and only notes pages that exist");
       }
     } finally {
-      for (PDDocument d : originals) {
-        try { d.close(); } catch (Exception ignored) {}
+      for (PdfObject p : pages) {
+        try { p.getDocument().close(); } catch (Exception ignored) {}
+      }
+      Files.deleteIfExists(out);
+    }
+  }
+
+  @Test
+  void composeOriginalPlusTextPages_randomTrue_unsortedSelectionList_preservesListOrder_andOutputs2nPagesIfAllHaveNotes() throws Exception {
+    PdfPreviewComposer composer = new PdfPreviewComposer();
+
+    int total = 20;
+    int n = 5;
+
+    // Create 20 originals
+    List<PdfObject> all = new ArrayList<>();
+    for (int i = 0; i < total; i++) {
+      PDDocument d = new PDDocument();
+      d.addPage(new PDPage());
+      all.add(new PdfObject(i, "chapter", d, "TEXT-" + i));
+    }
+
+    // Simulate random selection order: this list order is the output order
+    List<Integer> selectedIndexes = List.of(7, 2, 9, 0, 5);
+
+    List<PdfObject> selected = selectedIndexes.stream()
+        .map(all::get)
+        .toList();
+
+    // Give every selected page notes => expect 2*n pages
+    for (PdfObject p : selected) {
+      p.setNotes("NOTE-for-" + p.getIndex());
+    }
+
+    Path out = Files.createTempFile("preview-random-", ".pdf");
+
+    try {
+      composer.composeOriginalPlusTextPages(selected, out);
+
+      try (PDDocument result = Loader.loadPDF(out.toFile())) {
+        assertEquals(2 * n, result.getNumberOfPages(),
+            "Expected original+notes for each randomly selected page when all have notes");
+      }
+    } finally {
+      for (PdfObject p : all) {
+        try { p.getDocument().close(); } catch (Exception ignored) {}
       }
       Files.deleteIfExists(out);
     }

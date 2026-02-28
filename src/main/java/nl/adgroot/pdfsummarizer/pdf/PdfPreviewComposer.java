@@ -5,9 +5,7 @@ import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
-import nl.adgroot.pdfsummarizer.notes.records.CardsPage;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -20,45 +18,37 @@ public class PdfPreviewComposer {
 
   private static final String DEFAULT_FONT_RESOURCE = "/fonts/JetBrains/JetBrainsMono-Regular.ttf";
 
-  /**
-   * Builds a preview PDF by iterating the selected original pages IN ORDER and, for each
-   * selected page index i, optionally appending the notes page from cardsPagesByIndex.get(i).
-   * <p>
-   * Minimal fix for your bug:
-   * - Do NOT iterate sorted map keys and do NOT use n = min(pdfPages.size(), map.size()).
-   * - The map is keyed by *selected content index* (0..n-1) after preview selection.
-   * - Iterating pdfPages by index ensures non-random and random selection both produce
-   *   consistent output (e.g. 5 selected pages -> 10 output pages when notes exist for all 5).
-   */
   public void composeOriginalPlusTextPages(
-      List<PDDocument> pdfPages,
-      Map<Integer, CardsPage> cardsPagesByIndex,
+      List<PdfObject> pages,
       Path outputPdf
   ) throws IOException {
 
     try (PDDocument out = new PDDocument()) {
 
-      // Load the font ONCE into the SAME document we will save (unchanged)
       PDFont font = loadFont(out, DEFAULT_FONT_RESOURCE);
 
-      for (int i = 0; i < pdfPages.size(); i++) {
-        PDDocument single = pdfPages.get(i);
+      for (int i = 0; i < pages.size(); i++) {
+        PdfObject p = pages.get(i);
+
+        PDDocument single = p.getDocument();
         if (single == null || single.getNumberOfPages() == 0) continue;
 
-        // 1) original
+        // 1) original page
         PDPage original = single.getPage(0);
         out.importPage(original);
 
-        // 2) notes for this selected index (if present)
-        CardsPage notes = cardsPagesByIndex.get(i);
-        if (notes != null && notes.hasContent()) {
+        // 2) notes page (from PdfObject itself)
+        if (p.hasNotes()) {
           PDRectangle mediaBox = original.getMediaBox();
           PDPage textPage = new PDPage(mediaBox);
           out.addPage(textPage);
 
-          String s = String.valueOf(notes.content()); // keep your existing rendering behavior
-          s = i + s;                // keep your existing debug prefix behavior
+          String s = p.getNotes();
+
+          // keep your debug prefix behavior (unchanged)
+          s = p.getIndex() + p.getChapter() + s;
           System.out.println(debugNonAscii("ABOUT TO WRITE: " + s));
+
           writeWrappedText(out, textPage, s, font);
         }
       }
@@ -116,11 +106,6 @@ public class PdfPreviewComposer {
     }
   }
 
-  /**
-   * Wrap text without collapsing multiple spaces/tabs (good for code).
-   * - Splits into paragraphs by '\n'
-   * - Wraps by tokens that include whitespace, so indentation is preserved
-   */
   private static List<String> wrapPreserveSpaces(String text, PDFont font, float fontSize, float maxWidth)
       throws IOException {
 
@@ -132,7 +117,6 @@ public class PdfPreviewComposer {
         continue;
       }
 
-      // Tokenize into runs of non-space and runs of space/tab
       List<String> tokens = new ArrayList<>();
       StringBuilder tok = new StringBuilder();
       Boolean inWs = null;
@@ -149,22 +133,20 @@ public class PdfPreviewComposer {
         }
         inWs = ws;
       }
-      if (!tok.isEmpty()) tokens.add(tok.toString());
+      if (tok.length() > 0) tokens.add(tok.toString());
 
       StringBuilder line = new StringBuilder();
       for (String t : tokens) {
         String candidate = line.toString() + t;
         float w = font.getStringWidth(candidate) / 1000f * fontSize;
 
-        if (w <= maxWidth || line.isEmpty()) {
+        if (w <= maxWidth || line.length() == 0) {
           line.setLength(0);
           line.append(candidate);
         } else {
-          // flush current line, start a new one
           lines.add(rstrip(line.toString()));
           line.setLength(0);
 
-          // If token itself is super long, hard-break it
           if (font.getStringWidth(t) / 1000f * fontSize > maxWidth) {
             for (String chunk : hardWrap(t, font, fontSize, maxWidth)) {
               lines.add(rstrip(chunk));
@@ -187,7 +169,7 @@ public class PdfPreviewComposer {
       char c = token.charAt(i);
       String candidate = line.toString() + c;
       float w = font.getStringWidth(candidate) / 1000f * fontSize;
-      if (w <= maxWidth || line.isEmpty()) {
+      if (w <= maxWidth || line.length() == 0) {
         line.append(c);
       } else {
         out.add(line.toString());
@@ -195,7 +177,7 @@ public class PdfPreviewComposer {
         line.append(c);
       }
     }
-    if (!line.isEmpty()) out.add(line.toString());
+    if (line.length() > 0) out.add(line.toString());
     return out;
   }
 

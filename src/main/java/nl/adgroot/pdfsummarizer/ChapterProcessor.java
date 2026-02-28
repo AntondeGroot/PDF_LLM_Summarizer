@@ -5,7 +5,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 
@@ -13,27 +12,18 @@ import nl.adgroot.pdfsummarizer.PagePipeline.PageResult;
 import nl.adgroot.pdfsummarizer.config.AppConfig;
 import nl.adgroot.pdfsummarizer.llm.OllamaClient;
 import nl.adgroot.pdfsummarizer.llm.ServerPermitPool;
-import nl.adgroot.pdfsummarizer.notes.records.CardsPage;
 import nl.adgroot.pdfsummarizer.notes.NotesWriter;
 import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
-import nl.adgroot.pdfsummarizer.pdf.ParsedPDF;
+import nl.adgroot.pdfsummarizer.notes.records.CardsPage;
+import nl.adgroot.pdfsummarizer.pdf.PdfObject;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplate;
 import nl.adgroot.pdfsummarizer.text.Chapter;
-import nl.adgroot.pdfsummarizer.text.Page;
 
 public class ChapterProcessor {
 
-  /**
-   * Processes one chapter:
-   * - schedules all pages in the chapter via PagePipeline
-   * - waits for all pages
-   * - orders results by page index in chapter
-   * - writes the chapter CardsPage on writerPool
-   * - fills cardsPagesByIndex with ONE CardsPage PER SELECTED PAGE (keyed by content index)
-   */
   public CompletableFuture<Void> processChapterAsync(
       Chapter chapter,
-      ParsedPDF parsedPdf,
+      List<PdfObject> pages,
       String topic,
       PagePipeline pipeline,
       List<OllamaClient> llms,
@@ -45,29 +35,24 @@ public class ChapterProcessor {
       AppConfig cfg,
       ProgressTracker tracker,
       NotesWriter writer,
-      Path outDir,
-      Map<Integer, CardsPage> cardsPagesByIndex
+      Path outDir
   ) {
 
     final String chapterHeader = chapter.header;
-
     System.out.println("Scheduling chapter: " + chapterHeader);
 
-    // Chapter container (for writing the chapter file)
     CardsPage chapterCards = new CardsPage(topic, chapterHeader);
 
-    // Pages for this chapter
-    List<Page> pagesInChapter = parsedPdf.getContent()
-        .stream()
-        .filter(p -> p.chapter.equals(chapterHeader))
+    // Pages for this chapter, stable order
+    List<PdfObject> pagesInChapter = pages.stream()
+        .filter(p -> chapterHeader.equals(p.getChapter()))
         .toList();
 
     List<CompletableFuture<PageResult>> pageFutures = new ArrayList<>(pagesInChapter.size());
 
     for (int i = 0; i < pagesInChapter.size(); i++) {
       int pageIndexInChapter = i;
-      Page page = pagesInChapter.get(i);
-      int pageNr = page.pageNr;
+      PdfObject pdfObject = pagesInChapter.get(i);
 
       CompletableFuture<PageResult> pf = pipeline.processPageAsync(
           llms,
@@ -79,9 +64,9 @@ public class ChapterProcessor {
           topic,
           chapterHeader,
           pageIndexInChapter,
-          pageNr,
+          pdfObject.getIndex(),     // logging/debug only
           pagesInChapter.size(),
-          page,
+          pdfObject.getText(),
           tracker
       ).whenComplete((res, ex) -> {
         if (ex != null) {
@@ -89,7 +74,6 @@ public class ChapterProcessor {
             System.out.println("Page task failed in chapter '" + chapterHeader + "': " + ex);
           }
         } else {
-          System.out.println(res.cards());
           synchronized (System.out) {
             System.out.println(tracker.formatStatus(res.millis()));
           }
@@ -107,23 +91,25 @@ public class ChapterProcessor {
         )
         .thenAcceptAsync(results -> {
 
-          // 1) Build the chapter cards (for file output)
+          // 1) Chapter-level file
           for (PageResult r : results) {
             for (String card : r.cards()) {
               chapterCards.addCard(card);
             }
           }
 
-          // 2) FIX: Build preview notes per PAGE INDEX (0..n-1),
-          // not per chapter. This makes preview always 2*n pages.
+          // 2) Per-page notes stored directly on PdfObject
           for (PageResult r : results) {
-            int contentIndex = indexOfPageNr(parsedPdf, r.pageNr());
-            if (contentIndex < 0) continue;
+            PdfObject pdfObject = pagesInChapter.get(r.index());
 
             CardsPage perPage = new CardsPage(topic, chapterHeader);
-            for (String card : r.cards()) perPage.addCard(card);
+            for (String card : r.cards()) {
+              perPage.addCard(card);
+            }
 
-            cardsPagesByIndex.put(contentIndex, perPage);
+            if (perPage.hasContent()) {
+              pdfObject.setNotes(perPage.toString());
+            }
           }
 
           // 3) Write chapter output file
@@ -139,18 +125,5 @@ public class ChapterProcessor {
           }
 
         }, writerPool);
-  }
-
-  /**
-   * Find the index (0..content.size-1) of a page by pageNr.
-   * In preview mode, parsedPdf.getContent() has already been trimmed to the selected pages,
-   * so these indexes match the pdfPages list used for composing the preview PDF.
-   */
-  private static int indexOfPageNr(ParsedPDF parsedPdf, int pageNr) {
-    List<Page> content = parsedPdf.getContent();
-    for (int i = 0; i < content.size(); i++) {
-      if (content.get(i).pageNr == pageNr) return i;
-    }
-    return -1;
   }
 }
