@@ -23,7 +23,7 @@ public class PdfBoxPdfSplitter {
       Splitter splitter = new Splitter();
       splitter.setSplitAtPage(1); // one page per document
 
-      // Splitter returns separate PDDocument instances (one per page)
+      // Splitter returns separate PDDocument instances
       return splitter.split(document);
     }
   }

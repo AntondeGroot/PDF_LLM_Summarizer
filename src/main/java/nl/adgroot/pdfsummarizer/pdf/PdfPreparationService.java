@@ -27,7 +27,7 @@ public class PdfPreparationService {
     ParsedPDF parsedPdf = new ParsedPDF(pagesWithTOC, cfg.cards.nrOfLinesUsedForContext);
 
     // Align pdfPagesAll to parsedPdf.getContent()
-    List<PDDocument> alignedPdfPages = alignPdfPagesToParsedContent(pdfPagesAll, pagesWithTOC, parsedPdf);
+    List<PDDocument> alignedPdfPages = alignPdfPagesToParsedContent(pdfPagesAll, parsedPdf);
 
     // Build PdfObjects 1:1 from FULL content (before preview selection)
     List<Page> fullContent = parsedPdf.getContent();
@@ -72,25 +72,22 @@ public class PdfPreparationService {
 
   private static List<PDDocument> alignPdfPagesToParsedContent(
       List<PDDocument> pdfPages,
-      List<String> pagesWithTOC,
       ParsedPDF parsedPdf
   ) {
     int contentSize = parsedPdf.getContent().size();
-    if (contentSize <= 0) return List.of();
-
-    // Anchor alignment by first actual content page text (avoids TOC collisions)
-    String firstContentText = String.valueOf(parsedPdf.getContent().getFirst());
-    String needle = makeNeedle(firstContentText);
-
-    int firstContentIndex = findFirstPageContaining(pagesWithTOC, needle);
-
-    if (firstContentIndex < 0) {
-      int start = Math.max(0, pdfPages.size() - contentSize);
-      return pdfPages.subList(start, pdfPages.size());
+    if (contentSize <= 0 || pdfPages == null || pdfPages.isEmpty()) {
+      return List.of();
     }
 
-    int endExclusive = Math.min(firstContentIndex + contentSize, pdfPages.size());
-    return pdfPages.subList(firstContentIndex, endExclusive);
+    // If the splitter returned more pages than ParsedPDF content,
+    // drop the difference from the START.
+    int diff = pdfPages.size() - contentSize;
+
+    List<PDDocument> pages = pdfPages.subList(diff-2, pdfPages.size()-2);
+    if(pages.size() != contentSize){
+      throw new RuntimeException("Malformed Pdf pages");
+    }
+    return pages;
   }
 
   private static String makeNeedle(String s) {

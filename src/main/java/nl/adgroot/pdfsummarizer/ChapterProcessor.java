@@ -66,7 +66,7 @@ public class ChapterProcessor {
           pageIndexInChapter,
           pdfObject.getIndex(),     // logging/debug only
           pagesInChapter.size(),
-          pdfObject.getText(),
+          pdfObject.getTextReadFromPdf(),
           tracker
       ).whenComplete((res, ex) -> {
         if (ex != null) {

@@ -7,7 +7,7 @@ public class PdfObject {
   private final int index;           // 0..n-1 after preview selection
   private final String chapter;      // chapter header/title
   private final PDDocument document; // single-page PDDocument
-  private final String text;         // page text
+  private final String textReadFromPdf;         // page text
 
   private String notes;              // generated notes (per page)
   private String summary;            // optional future
@@ -16,7 +16,7 @@ public class PdfObject {
     this.index = index;
     this.chapter = chapter;
     this.document = document;
-    this.text = text;
+    this.textReadFromPdf = text;
   }
 
   public int getIndex() {
@@ -31,8 +31,8 @@ public class PdfObject {
     return document;
   }
 
-  public String getText() {
-    return text;
+  public String getTextReadFromPdf() {
+    return textReadFromPdf;
   }
 
   public String getNotes() {
