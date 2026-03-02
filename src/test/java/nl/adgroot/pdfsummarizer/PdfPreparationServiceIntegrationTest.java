@@ -131,9 +131,9 @@ class PdfPreparationServiceIntegrationTest {
       addPageWithText(doc, "Preface\nThis is not a TOC page.\n");
 
       // first content page must contain chapter header so getStringPagesWithoutTOC can find it
-      addPageWithText(doc, "Chapter 1: Intro\nCONTENT-0\n");
+      addPageWithText(doc, "Chapter 1: Intro\nCONTENT-1\n");
 
-      for (int i = 1; i < contentPages; i++) {
+      for (int i = 2; i < contentPages; i++) {
         addPageWithText(doc, "CONTENT-" + i + "\n");
       }
 

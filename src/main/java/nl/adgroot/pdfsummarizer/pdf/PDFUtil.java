@@ -91,11 +91,6 @@ public class PDFUtil {
       String page = pagesRaw.get(i);
       if (page == null) continue;
 
-      // Do not start content on TOC-like pages (TOC often contains the chapter title)
-      if (isTableOfContentsPage(page)) {
-        continue;
-      }
-
       if (page.contains(firstChapter)) {
         return pagesRaw.subList(i, pagesRaw.size());
       }

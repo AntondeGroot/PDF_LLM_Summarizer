@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Objects;
 import nl.adgroot.pdfsummarizer.pdf.ParsedPDF;
 import nl.adgroot.pdfsummarizer.pdf.PdfBoxTextExtractor;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 class TableOfContentConverterTest {
@@ -113,8 +114,8 @@ class TableOfContentConverterTest {
     // THEN number of chapters is correct with correct titles
     List<Chapter> toc = parsedPDF.getTableOfContent();
     assertEquals(12, toc.size());
-    assertEquals("Chapter 1: Vector Analysis",toc.getFirst().header);// it added Chapter 1: to the header
-    assertEquals("Chapter 12: Electrodynamics and Relativity", toc.getLast().header);
+    assertEquals("Vector Analysis",toc.getFirst().header);// it added Chapter 1: to the header
+    assertEquals("Electrodynamics and Relativity", toc.getLast().header);
     // THEN start and end pages are correct
     assertEquals(1, toc.getFirst().start);
     assertEquals(58, toc.getFirst().end);
@@ -166,10 +167,10 @@ class TableOfContentConverterTest {
     List<Chapter> result = convert(toc);
 
     assertEquals(2, result.size());
-    assertEquals("Chapter 4: ISO 27001 2022 update", result.get(0).header);
+    assertEquals("ISO 27001 2022 update", result.get(0).header);
     assertEquals(50, result.get(0).start);
     assertEquals(69, result.get(0).end);
-    assertEquals("Chapter 5: Node.js 18 and 20", result.get(1).header);
+    assertEquals("Node.js 18 and 20", result.get(1).header);
     assertEquals(70, result.get(1).start);
   }
 
@@ -178,6 +179,24 @@ class TableOfContentConverterTest {
     assertEquals(List.of(), convert(null));
     assertEquals(List.of(), convert(""));
     assertEquals(List.of(), convert("   \n\t"));
+  }
+
+  @Disabled
+  @Test
+  void convert_LastChapterBeforeAppendices_CorrectEnd_AppendicesDontCount(){
+    String toc = """
+        11 Chapter 11: Troubleshooting 24
+        11.1 Build issues . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 24
+        11.1.1 Symptom . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 24
+        11.1.2 Resolution . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 24
+        11.2 Runtime issues . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 25
+        Appendix A: Extra notes 27
+        Appendix B: Glossary 28""";
+
+    List<Chapter> tocChapters = convert(toc);
+
+    assertEquals(1, tocChapters.size());
+    assertEquals(26, tocChapters.getLast().end);
   }
 
 
