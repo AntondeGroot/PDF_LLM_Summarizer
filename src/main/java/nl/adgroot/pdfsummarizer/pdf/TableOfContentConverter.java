@@ -60,7 +60,7 @@ public class TableOfContentConverter {
         String chapterTitle = cleanTitle(m.group(2).trim());
         int start = Integer.parseInt(m.group(3)); // <-- IMPORTANT: page is group(3)
 
-        Chapter chapter = new Chapter("Chapter " + chapterNr + ": " + chapterTitle);
+        Chapter chapter = new Chapter(chapterTitle);
         chapter.start = start;
         chapters.add(chapter);
       }

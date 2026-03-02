@@ -1,7 +1,6 @@
 package nl.adgroot.pdfsummarizer.pdf;
 
 import java.util.List;
-import org.apache.pdfbox.pdmodel.PDDocument;
 
 /**
  * Result of loading + preparing a PDF for processing.
