@@ -1,0 +1,306 @@
+\documentclass[a4paper,11pt,openany]{book}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+
+% More realistic TOC depth (chapters/sections/subsections)
+\setcounter{tocdepth}{2}
+
+% Simple page style
+\pagestyle{plain}
+
+% --- IMPORTANT: front/main/back matter WITHOUT resetting page counter ---
+% book.cls uses \pagenumbering{roman/arabic} which resets page to 1.
+% We redefine frontmatter/mainmatter/backmatter to only change \thepage (display),
+% keeping the underlying page counter continuous.
+\makeatletter
+\renewcommand\frontmatter{%
+  \if@openright\cleardoublepage\else\clearpage\fi
+  \@mainmatterfalse
+  \renewcommand\thepage{\roman{page}}%
+}
+\renewcommand\mainmatter{%
+  \if@openright\cleardoublepage\else\clearpage\fi
+  \@mainmattertrue
+  \renewcommand\thepage{\arabic{page}}%
+}
+\renewcommand\backmatter{%
+  \if@openright\cleardoublepage\else\clearpage\fi
+  \@mainmatterfalse
+  % keep arabic display in back matter (typical), and DO NOT reset counter
+  \renewcommand\thepage{\arabic{page}}%
+}
+\makeatother
+
+% ---- Filler text helpers (no extra packages needed) ----
+\newcommand{\filler}{%
+This is placeholder text for PDF reader tests. It is intentionally generic and repeated to
+create realistic page flow, line breaks, paragraph boundaries, and searchable content.
+It contains numbers (12345), punctuation, and mixed-case words for indexing tests. \par\medskip
+}
+
+% DO NOT use \count0 (it affects TeX's page output). Use our own counter:
+\newcount\fillercount
+\newcommand{\manyfiller}[1]{%
+\begingroup
+\fillercount=0
+\loop\ifnum\fillercount<#1
+  \advance\fillercount by 1
+  \filler
+\repeat
+\endgroup
+}
+
+\begin{document}
+
+% --------------------
+% Front matter (roman numerals shown, counter NOT reset)
+% --------------------
+\frontmatter
+
+% Cover page (anonymised)
+\begin{titlepage}
+  \centering
+  \vspace*{2cm}
+  {\Large \textbf{FREE eBook}\par}
+  \vspace{2cm}
+  {\Huge \textbf{LEARNING}\par}
+  \vspace{0.2cm}
+  {\Huge \textbf{Subject}\par}
+  \vfill
+  {\large Unaffiliated placeholder document\par}
+  \vspace{0.5cm}
+  {\large Version 1.0\par}
+\end{titlepage}
+
+\renewcommand{\contentsname}{Table of Contents}
+\tableofcontents
+\clearpage
+
+\chapter*{About}
+\addcontentsline{toc}{chapter}{About}
+\noindent
+About section (placeholder). This document is anonymised and intended only for PDF reader tests.
+It includes headings, page breaks, lists, tables, code-like blocks, and footnotes.
+\par\medskip
+\filler
+\filler
+
+\chapter*{Credits}
+\addcontentsline{toc}{chapter}{Credits}
+Credits section (placeholder).\\
+Contributor A, Contributor B, Contributor C.
+
+% --------------------
+% Main matter (arabic shown, counter continues)
+% --------------------
+\mainmatter
+
+% ========== Chapter 1 ==========
+\chapter{Chapter 1: Getting started}
+\section{Overview}
+\filler\manyfiller{3}
+
+\section{Setup}
+\subsection{Subsection 1}
+\filler\manyfiller{2}
+
+\subsection{Subsection 2}
+\filler\manyfiller{2}
+
+\section{Quick check}
+A short list (placeholder):
+\begin{itemize}
+  \item Item 1 (placeholder)
+  \item Item 2 (placeholder)
+  \item Item 3 (placeholder)
+\end{itemize}
+\filler
+
+% ========== Chapter 2 ==========
+\chapter{Chapter 2: Basic concepts}
+\section{Key terms}
+\filler\manyfiller{2}
+
+\subsection{Definition A}
+\filler\manyfiller{2}
+
+\subsection{Definition B}
+\filler\manyfiller{2}
+
+\section{A simple example}
+Code-like block (placeholder):
+\begin{verbatim}
+# Example (placeholder)
+command --flag value
+output: OK
+\end{verbatim}
+\filler\manyfiller{2}
+
+% ========== Chapter 3 ==========
+\chapter{Chapter 3: Configuration}
+\section{Settings}
+\filler\manyfiller{2}
+
+\subsection{Default values}
+\filler\manyfiller{1}
+
+\subsection{Overriding values}
+\filler\manyfiller{2}
+
+\section{A small table}
+\begin{tabular}{|p{4cm}|p{9cm}|}
+\hline
+\textbf{Field} & \textbf{Description} \\
+\hline
+Field 1 & Placeholder description for field 1. \\
+\hline
+Field 2 & Placeholder description for field 2. \\
+\hline
+Field 3 & Placeholder description for field 3. \\
+\hline
+\end{tabular}
+
+\par\medskip
+\filler\manyfiller{2}
+
+% ========== Chapter 4 ==========
+\chapter{Chapter 4: Workflows}
+\section{Common workflow}
+\filler\manyfiller{2}
+
+\subsection{Step 1}
+\filler\manyfiller{2}
+
+\subsection{Step 2}
+\filler\manyfiller{2}
+
+\section{Notes and remarks}
+A quote (placeholder):
+\begin{quote}
+This is a placeholder quotation used to test paragraph indentation and block rendering.
+\end{quote}
+\filler\manyfiller{2}
+
+% ========== Chapter 5 ==========
+\chapter{Chapter 5: Data handling}
+\section{Persistence}
+\filler\manyfiller{3}
+
+\subsection{Subsection 1}
+\filler\manyfiller{2}
+
+\subsection{Subsection 2}
+\filler\manyfiller{2}
+
+\section{Footnote test}
+This sentence has a footnote\footnote{Footnote placeholder text for testing extraction and layout.}.
+\filler\manyfiller{2}
+
+% ========== Chapter 6 ==========
+\chapter{Chapter 6: Networking}
+\section{Connectivity modes}
+\filler\manyfiller{3}
+
+\subsection{Mode A}
+\filler\manyfiller{2}
+
+\subsection{Mode B}
+\filler\manyfiller{2}
+
+\section{Cross-reference text}
+Cross-reference placeholder: see “Chapter 11: Troubleshooting”.
+\filler
+
+% ========== Chapter 7 ==========
+\chapter{Chapter 7: Monitoring and logging}
+\section{Monitoring}
+\filler\manyfiller{3}
+
+\section{Logging}
+\filler\manyfiller{3}
+
+\subsection{Example log snippet}
+\begin{verbatim}
+[INFO] Placeholder log line 1
+[WARN] Placeholder log line 2
+[ERROR] Placeholder log line 3
+\end{verbatim}
+\filler\manyfiller{2}
+
+% ========== Chapter 8 ==========
+\chapter{Chapter 8: Security}
+\section{Principles}
+\filler\manyfiller{3}
+
+\subsection{Checklist}
+\begin{enumerate}
+  \item Checklist item 1 (placeholder)
+  \item Checklist item 2 (placeholder)
+  \item Checklist item 3 (placeholder)
+\end{enumerate}
+\filler\manyfiller{2}
+
+% ========== Chapter 9 ==========
+\chapter{Chapter 9: Advanced topic}
+\section{Deep dive}
+\filler\manyfiller{6}
+
+\subsection{Subtopic}
+\filler\manyfiller{3}
+
+% ========== Chapter 10 ==========
+\chapter{Chapter 10: Reference}
+\section{Commands}
+\filler\manyfiller{2}
+
+\subsection{Command A}
+\begin{verbatim}
+command-a --help
+\end{verbatim}
+\filler\manyfiller{2}
+
+\subsection{Command B}
+\begin{verbatim}
+command-b --verbose --dry-run
+\end{verbatim}
+\filler\manyfiller{2}
+
+% ========== Chapter 11 ==========
+\chapter{Chapter 11: Troubleshooting}
+\section{Build issues}
+\filler\manyfiller{3}
+
+\subsection{Symptom}
+\filler\manyfiller{2}
+
+\subsection{Resolution}
+\filler\manyfiller{3}
+
+\section{Runtime issues}
+\filler\manyfiller{4}
+
+% --------------------
+% Back matter (arabic continues)
+% --------------------
+\backmatter
+
+\chapter*{Appendix A: Extra notes}
+\addcontentsline{toc}{chapter}{Appendix A: Extra notes}
+\filler\manyfiller{4}
+
+\chapter*{Appendix B: Glossary}
+\addcontentsline{toc}{chapter}{Appendix B: Glossary}
+\begin{description}
+  \item[Term 1] Definition (placeholder).
+  \item[Term 2] Definition (placeholder).
+  \item[Term 3] Definition (placeholder).
+\end{description}
+\filler\manyfiller{2}
+
+\chapter*{Index (placeholder)}
+\addcontentsline{toc}{chapter}{Index (placeholder)}
+Index placeholder text.
+
+\end{document}
