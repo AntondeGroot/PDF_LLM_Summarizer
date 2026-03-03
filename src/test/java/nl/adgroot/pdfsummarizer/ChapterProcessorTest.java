@@ -125,7 +125,7 @@ class ChapterProcessorTest {
         String chapterTitle,
         int pageIndexInChapter,
         int pageNr,
-        int chunkCount,
+        int nrPagesInChapter,
         String pageText,
         ProgressTracker tracker
     ) {
