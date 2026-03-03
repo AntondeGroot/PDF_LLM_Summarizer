@@ -1,6 +1,5 @@
 package nl.adgroot.pdfsummarizer;
 
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -54,7 +53,7 @@ public class PagePipeline {
       String chapterTitle,
       int pageIndexInChapter,
       int pageNr,
-      int chunkCount,
+      int nrPagesInChapter,
       String pageText,
       ProgressTracker tracker
   ) {
@@ -63,11 +62,7 @@ public class PagePipeline {
 
     String prompt = promptTemplate.render(Map.of(
         "topic", topic,
-        "topicTag", topic.toLowerCase().replace(" ", "-"),
         "section", chapterTitle,
-        "chunkIndex", String.valueOf(pageIndexInChapter + 1),
-        "chunkCount", String.valueOf(chunkCount),
-        "created", LocalDate.now().toString(),
         "maxCards", String.valueOf(cfg.cards.maxCardsPerChunk),
         "content", pageText
     ));
@@ -79,25 +74,23 @@ public class PagePipeline {
 
       synchronized (System.out) {
         System.out.printf(
-            "START idx=%d/%d pageNr=%d chapter='%s' inflight=%d server=%d url=%s%n",
-            (pageIndexInChapter + 1), chunkCount, pageNr, chapterTitle, nowInflight,
-            serverIndex, llm.getUrl()
+            "START idx=%d/%d chapter='%s' inflight=%d server=%d url=%s%n",
+            (pageIndexInChapter + 1), nrPagesInChapter, chapterTitle, nowInflight, serverIndex, llm.getUrl()
         );
       }
 
       return llm.generateAsync(prompt)
           .thenApplyAsync(result -> {
             try {
+              // result
               String md = result.response();
-              LlmMetrics metrics = result.metrics();
-
               List<Card> cards = cardsParser.parse(md);
-
-              List<String> cardStrings = new ArrayList<>(cards.size());
+              List<String> cardStrings = new ArrayList<>();
               for (Card c : cards) cardStrings.add(c.toString());
 
+              // metrics
+              LlmMetrics metrics = result.metrics();
               long millis = (System.nanoTime() - startNs) / 1_000_000;
-
               tracker.finishPage(metrics);
 
               return new PageResult(pageIndexInChapter, pageNr, cardStrings, millis, metrics);
@@ -112,7 +105,7 @@ public class PagePipeline {
             synchronized (System.out) {
               System.out.printf(
                   "END   idx=%d/%d chapter='%s' took=%dms inflight=%d server=%d %s%n",
-                  (pageIndexInChapter + 1), chunkCount, chapterTitle, millis, leftInflight,
+                  (pageIndexInChapter + 1), nrPagesInChapter, chapterTitle, millis, leftInflight,
                   serverIndex,
                   (ex != null ? "ERROR=" + ex : "")
               );

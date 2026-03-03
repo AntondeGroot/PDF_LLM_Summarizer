@@ -2,7 +2,6 @@ You are generating Obsidian notes as QUESTION CARDS for spaced repetition.
 
 Topic: {{topic}}
 Section: {{section}}
-Chunk: {{chunkIndex}}/{{chunkCount}}
 
 STRICT OUTPUT RULES:
 - Output ONLY Markdown notes.
