@@ -1,4 +1,4 @@
-package nl.adgroot.pdfsummarizer.pdf;
+package nl.adgroot.pdfsummarizer.pdf.parsing;
 
 import java.io.IOException;
 import java.io.InputStream;

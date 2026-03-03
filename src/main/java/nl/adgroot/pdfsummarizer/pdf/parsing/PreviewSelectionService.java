@@ -1,4 +1,4 @@
-package nl.adgroot.pdfsummarizer.pdf;
+package nl.adgroot.pdfsummarizer.pdf.parsing;
 
 import static java.util.Collections.shuffle;
 

@@ -1,6 +1,6 @@
 package nl.adgroot.pdfsummarizer.text;
 
-import static nl.adgroot.pdfsummarizer.pdf.TableOfContentConverter.convert;
+import static nl.adgroot.pdfsummarizer.pdf.tableOfContents.TableOfContentsConverter.convert;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
@@ -9,12 +9,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Objects;
-import nl.adgroot.pdfsummarizer.pdf.ParsedPDF;
-import nl.adgroot.pdfsummarizer.pdf.PdfBoxTextExtractor;
+import nl.adgroot.pdfsummarizer.pdf.parsing.ParsedPDF;
+import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxTextExtractor;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
-class TableOfContentConverterTest {
+class TableOfContentsConverterTest {
 
   PdfBoxTextExtractor extractor = new PdfBoxTextExtractor();
   String rawTOC =
@@ -125,7 +125,7 @@ class TableOfContentConverterTest {
 
   private Path getResourcePath(String fileName) throws URISyntaxException {
     return Paths.get(
-        Objects.requireNonNull(TableOfContentConverterTest.class.getClassLoader().getResource(fileName)).toURI()
+        Objects.requireNonNull(TableOfContentsConverterTest.class.getClassLoader().getResource(fileName)).toURI()
     );
   }
 

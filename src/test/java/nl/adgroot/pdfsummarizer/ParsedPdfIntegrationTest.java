@@ -10,8 +10,8 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.Objects;
 
-import nl.adgroot.pdfsummarizer.pdf.ParsedPDF;
-import nl.adgroot.pdfsummarizer.pdf.PdfBoxTextExtractor;
+import nl.adgroot.pdfsummarizer.pdf.parsing.ParsedPDF;
+import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxTextExtractor;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;

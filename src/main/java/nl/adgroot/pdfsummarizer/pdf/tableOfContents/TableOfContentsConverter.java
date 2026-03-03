@@ -1,4 +1,4 @@
-package nl.adgroot.pdfsummarizer.pdf;
+package nl.adgroot.pdfsummarizer.pdf.tableOfContents;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -6,7 +6,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import nl.adgroot.pdfsummarizer.text.Chapter;
 
-public class TableOfContentConverter {
+public class TableOfContentsConverter {
 
   // "Chapter 36: Running Simple Node.js Application 131"
   private static final Pattern CHAPTER_HEADING_PATTERN = Pattern.compile(

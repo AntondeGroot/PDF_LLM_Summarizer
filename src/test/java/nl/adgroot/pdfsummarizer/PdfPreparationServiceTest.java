@@ -8,12 +8,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 import nl.adgroot.pdfsummarizer.config.AppConfig;
-import nl.adgroot.pdfsummarizer.pdf.ParsedPDF;
-import nl.adgroot.pdfsummarizer.pdf.PdfBoxPdfSplitter;
-import nl.adgroot.pdfsummarizer.pdf.PdfBoxTextExtractor;
-import nl.adgroot.pdfsummarizer.pdf.PdfObject;
-import nl.adgroot.pdfsummarizer.pdf.PdfPreparationService;
-import nl.adgroot.pdfsummarizer.pdf.PreparedPdf;
+import nl.adgroot.pdfsummarizer.pdf.parsing.ParsedPDF;
+import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxPdfSplitter;
+import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxTextExtractor;
+import nl.adgroot.pdfsummarizer.pdf.parsing.PdfPreparationService;
+import nl.adgroot.pdfsummarizer.pdf.parsing.PreparedPdf;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.junit.jupiter.api.AfterEach;

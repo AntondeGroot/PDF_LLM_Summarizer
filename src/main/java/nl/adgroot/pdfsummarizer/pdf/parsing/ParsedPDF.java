@@ -1,9 +1,10 @@
-package nl.adgroot.pdfsummarizer.pdf;
+package nl.adgroot.pdfsummarizer.pdf.parsing;
 
-import static nl.adgroot.pdfsummarizer.pdf.TableOfContentConverter.convert;
+import static nl.adgroot.pdfsummarizer.pdf.tableOfContents.TableOfContentsConverter.convert;
 
 import java.util.ArrayList;
 import java.util.List;
+import nl.adgroot.pdfsummarizer.pdf.tableOfContents.TableOfContentsUtil;
 import nl.adgroot.pdfsummarizer.text.Chapter;
 import nl.adgroot.pdfsummarizer.text.Page;
 
@@ -14,8 +15,8 @@ public class ParsedPDF {
 
   public ParsedPDF(List<String> pages, int nrOfLinesUsedForContext){
     // determine Table Of Content Pages
-    int TOC_begin = PDFUtil.getTableOfContentFirstPage(pages);
-    int TOC_end = PDFUtil.getTableOfContentLastPage(pages, TOC_begin);
+    int TOC_begin = TableOfContentsUtil.getTableOfContentsFirstPage(pages);
+    int TOC_end = TableOfContentsUtil.getTableOfContentsLastPage(pages, TOC_begin);
 
     StringBuilder TOC = new StringBuilder();
     for (int i = TOC_begin; i <= TOC_end; i++) {
@@ -26,7 +27,7 @@ public class ParsedPDF {
 
     // determine content without TOC
     pages = pages.subList(TOC_end+1, pages.size());// pages might still contain an About section between TOC and the First Chapter.
-    pages = PDFUtil.getStringPagesWithoutTOC(pages, tableOfContent);
+    pages = TableOfContentsUtil.getStringPagesWithoutTOC(pages, tableOfContent);
     tableOfContent.getLast().end = pages.size(); // this value was not yet determined, and there is not yet a good way to determine it.
     List<Page> pages3 = new ArrayList<>();
     offset = -tableOfContent.getFirst().start;

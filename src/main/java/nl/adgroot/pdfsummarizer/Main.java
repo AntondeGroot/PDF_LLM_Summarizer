@@ -15,12 +15,12 @@ import nl.adgroot.pdfsummarizer.llm.OllamaClientsFactory;
 import nl.adgroot.pdfsummarizer.llm.ServerPermitPool;
 import nl.adgroot.pdfsummarizer.notes.NotesWriter;
 import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
-import nl.adgroot.pdfsummarizer.pdf.PdfBoxPdfSplitter;
-import nl.adgroot.pdfsummarizer.pdf.PdfBoxTextExtractor;
-import nl.adgroot.pdfsummarizer.pdf.PdfObject;
-import nl.adgroot.pdfsummarizer.pdf.PdfPreparationService;
-import nl.adgroot.pdfsummarizer.pdf.PdfPreviewComposer;
-import nl.adgroot.pdfsummarizer.pdf.PreparedPdf;
+import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxPdfSplitter;
+import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxTextExtractor;
+import nl.adgroot.pdfsummarizer.pdf.parsing.PdfObject;
+import nl.adgroot.pdfsummarizer.pdf.parsing.PdfPreparationService;
+import nl.adgroot.pdfsummarizer.pdf.parsing.PdfPreviewComposer;
+import nl.adgroot.pdfsummarizer.pdf.parsing.PreparedPdf;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplate;
 import nl.adgroot.pdfsummarizer.text.Chapter;
 

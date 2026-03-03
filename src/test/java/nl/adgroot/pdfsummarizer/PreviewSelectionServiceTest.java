@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
 import nl.adgroot.pdfsummarizer.config.AppConfig;
-import nl.adgroot.pdfsummarizer.pdf.PreviewSelectionService;
+import nl.adgroot.pdfsummarizer.pdf.parsing.PreviewSelectionService;
 import org.junit.jupiter.api.Test;
 
 class PreviewSelectionServiceTest {
