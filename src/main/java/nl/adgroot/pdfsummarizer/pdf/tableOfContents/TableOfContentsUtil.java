@@ -1,11 +1,11 @@
-package nl.adgroot.pdfsummarizer.pdf;
+package nl.adgroot.pdfsummarizer.pdf.tableOfContents;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 import nl.adgroot.pdfsummarizer.text.Chapter;
 
-public class PDFUtil {
+public class TableOfContentsUtil {
 
   // ends with a page number (allow trailing whitespace)
   private static final Pattern ENDS_WITH_PAGE_NR = Pattern.compile(".*\\s+\\d+\\s*$");
@@ -20,29 +20,26 @@ public class PDFUtil {
    * @param page the textual content of a single PDF page
    * @return {@code true} if the page is likely a TOC page; {@code false} otherwise
    */
-  public static boolean isTableOfContentsPage(String page) {
+  public static boolean isPageATableOfContentsPage(String page) {
     if (page == null || page.isBlank()) {
       return false;
     }
 
-    String[] lines = page.split("\\R"); // handles \n, \r\n, etc.
-
     int totalRelevantLines = 0;
     int tocMatches = 0;
+    String[] lines = page.split("\\R"); // handles \n, \r\n, etc.
 
     for (String rawLine : lines) {
-      if (rawLine == null) continue;
-
       // Normalize: remove control chars that can break regex matching in real PDFs
       String line = rawLine.replaceAll("\\p{C}+", "").trim();
-
       if (line.isEmpty()) {
         continue;
       }
 
       totalRelevantLines++;
 
-      if (ENDS_WITH_PAGE_NR.matcher(line).matches()) {
+      if (ENDS_WITH_PAGE_NR.matcher(line).matches() ||
+          line.equalsIgnoreCase("contents")) {
         tocMatches++;
       }
 
@@ -59,7 +56,7 @@ public class PDFUtil {
     return ratio >= 0.90;
   }
 
-  static int getTableOfContentFirstPage(List<String> pages) {
+  public static int getTableOfContentsFirstPage(List<String> pages) {
     int upperBoundTableOfContents = Math.min(pages.size(), 10);
     for (int i = 0; i < upperBoundTableOfContents; i++) {
       if (pages.get(i).toLowerCase().contains("table of contents")) {
@@ -75,9 +72,9 @@ public class PDFUtil {
     throw new TableOfContentsException("Could not find table of contents");
   }
 
-  static int getTableOfContentLastPage(List<String> pages, int tocBeginIndex) {
+  public static int getTableOfContentsLastPage(List<String> pages, int tocBeginIndex) {
     for (int i = tocBeginIndex + 1; i < pages.size(); i++) {
-      if (!isTableOfContentsPage(pages.get(i))) {
+      if (!isPageATableOfContentsPage(pages.get(i))) {
         return i - 1;
       }
     }

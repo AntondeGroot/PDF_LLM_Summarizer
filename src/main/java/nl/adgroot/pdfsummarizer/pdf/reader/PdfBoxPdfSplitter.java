@@ -1,4 +1,4 @@
-package nl.adgroot.pdfsummarizer.pdf;
+package nl.adgroot.pdfsummarizer.pdf.reader;
 
 import java.io.IOException;
 import java.nio.file.Path;

@@ -8,8 +8,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-import nl.adgroot.pdfsummarizer.pdf.PdfObject;
-import nl.adgroot.pdfsummarizer.pdf.PdfPreviewComposer;
+import nl.adgroot.pdfsummarizer.pdf.parsing.PdfObject;
+import nl.adgroot.pdfsummarizer.pdf.parsing.PdfPreviewComposer;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;

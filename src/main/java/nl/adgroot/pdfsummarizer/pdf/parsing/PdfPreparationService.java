@@ -1,4 +1,4 @@
-package nl.adgroot.pdfsummarizer.pdf;
+package nl.adgroot.pdfsummarizer.pdf.parsing;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import nl.adgroot.pdfsummarizer.config.AppConfig;
+import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxPdfSplitter;
+import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxTextExtractor;
 import nl.adgroot.pdfsummarizer.text.Page;
 import org.apache.pdfbox.pdmodel.PDDocument;
 

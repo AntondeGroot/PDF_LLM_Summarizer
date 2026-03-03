@@ -1,4 +1,4 @@
-package nl.adgroot.pdfsummarizer.pdf;
+package nl.adgroot.pdfsummarizer.pdf.tableOfContents;
 
 public class TableOfContentsException extends RuntimeException {
 
