@@ -1,6 +1,6 @@
 package nl.adgroot.pdfsummarizer.text;
 
-import static nl.adgroot.pdfsummarizer.pdf.tableOfContents.TableOfContentsConverter.convert;
+import static nl.adgroot.pdfsummarizer.pdf.tableOfContents.TableOfContentsConverter.convertTableOfContentsToChapterList;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
@@ -44,7 +44,7 @@ class TableOfContentsConverterTest {
         new Chapter("Chapter 37: security", 135, 0)
     );
 
-    assertEquals(expectedTOC, convert(rawTOC));
+    assertEquals(expectedTOC, convertTableOfContentsToChapterList(rawTOC));
   }
 
   @Test
@@ -78,7 +78,7 @@ class TableOfContentsConverterTest {
   @Test
   void readTocWithStringChapterCapital(){
     // WHEN Chapter with C capitalized
-    List<Chapter> toc = convert("Chapter 1: test1 1\nChapter 2: test 2");
+    List<Chapter> toc = convertTableOfContentsToChapterList("Chapter 1: test1 1\nChapter 2: test 2");
 
     // THEN
     assertEquals(2, toc.size());
@@ -87,7 +87,7 @@ class TableOfContentsConverterTest {
   @Test
   void readTocWithStringChapterLowercase(){
     // WHEN Chapter with C capitalized
-    List<Chapter> toc = convert("chapter 1: test1 1\nchapter 2: test 2");
+    List<Chapter> toc = convertTableOfContentsToChapterList("chapter 1: test1 1\nchapter 2: test 2");
 
     // THEN
     assertEquals(2, toc.size());
@@ -96,7 +96,7 @@ class TableOfContentsConverterTest {
   @Test
   void readToc_ChapterNumber_ChapterTitle_PageNr(){
     // WHEN Chapter with C capitalized
-    List<Chapter> toc = convert("4 subject 4 14\n5 subject 5 15");
+    List<Chapter> toc = convertTableOfContentsToChapterList("4 subject 4 14\n5 subject 5 15");
 
     // THEN
     assertEquals(2, toc.size());
@@ -135,7 +135,7 @@ class TableOfContentsConverterTest {
         "Chapter 1: Intro .......... 1\n" +
             "Chapter 2: Setup ..... 5\n";
 
-    List<Chapter> result = convert(toc);
+    List<Chapter> result = convertTableOfContentsToChapterList(toc);
 
     assertEquals(2, result.size());
     assertEquals("Chapter 1: Intro", result.getFirst().header);
@@ -153,7 +153,7 @@ class TableOfContentsConverterTest {
             "1.2 Also not a chapter 3\n" +
             "Chapter 2: Next 5\n";
 
-    List<Chapter> result = convert(toc);
+    List<Chapter> result = convertTableOfContentsToChapterList(toc);
 
     assertEquals(2, result.size());
     assertEquals("Chapter 1: Intro", result.get(0).header);
@@ -164,7 +164,7 @@ class TableOfContentsConverterTest {
   void readToc_numberedFormat_titleContainsManyNumbers() {
     String toc = "4 ISO 27001 2022 update 50\n5 Node.js 18 and 20 70\n";
 
-    List<Chapter> result = convert(toc);
+    List<Chapter> result = convertTableOfContentsToChapterList(toc);
 
     assertEquals(2, result.size());
     assertEquals("ISO 27001 2022 update", result.get(0).header);
@@ -176,9 +176,9 @@ class TableOfContentsConverterTest {
 
   @Test
   void convert_nullOrBlank_returnsEmptyList() {
-    assertEquals(List.of(), convert(null));
-    assertEquals(List.of(), convert(""));
-    assertEquals(List.of(), convert("   \n\t"));
+    assertEquals(List.of(), convertTableOfContentsToChapterList(null));
+    assertEquals(List.of(), convertTableOfContentsToChapterList(""));
+    assertEquals(List.of(), convertTableOfContentsToChapterList("   \n\t"));
   }
 
   @Disabled
@@ -193,7 +193,7 @@ class TableOfContentsConverterTest {
         Appendix A: Extra notes 27
         Appendix B: Glossary 28""";
 
-    List<Chapter> tocChapters = convert(toc);
+    List<Chapter> tocChapters = convertTableOfContentsToChapterList(toc);
 
     assertEquals(1, tocChapters.size());
     assertEquals(26, tocChapters.getLast().end);

@@ -1,6 +1,6 @@
 package nl.adgroot.pdfsummarizer.pdf.parsing;
 
-import static nl.adgroot.pdfsummarizer.pdf.tableOfContents.TableOfContentsConverter.convert;
+import static nl.adgroot.pdfsummarizer.pdf.tableOfContents.TableOfContentsConverter.convertTableOfContentsToChapterList;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,8 +22,9 @@ public class ParsedPDF {
     for (int i = TOC_begin; i <= TOC_end; i++) {
       TOC.append(pages.get(i));
     }
+    // todo: determine matcher for TOC
 
-    tableOfContent = convert(TOC.toString());
+    tableOfContent = convertTableOfContentsToChapterList(TOC.toString());
 
     // determine content without TOC
     pages = pages.subList(TOC_end+1, pages.size());// pages might still contain an About section between TOC and the First Chapter.
