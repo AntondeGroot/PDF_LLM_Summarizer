@@ -20,7 +20,9 @@ public class TableOfContentsConverter {
       "^\\s*(\\d+)\\s+(.+?)\\s+(\\d+)\\s*$"
   );
 
-  public static List<Chapter> convert(String tocPages) {
+  public static void determineMatcherForTableOfContents(String tocPages){}
+
+  public static List<Chapter> convertTableOfContentsToChapterList(String tocPages) {
     if (tocPages == null || tocPages.isBlank()) {
       return List.of();
     }
