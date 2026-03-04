@@ -87,7 +87,7 @@ public class Main {
       }
       llms = List.of(new ChatGptClient(cfg.openai, apiKey));
       // client-side concurrency cap for OpenAI
-      int maxConcurrency = Math.max(1, cfg.ollama.concurrency);
+      int maxConcurrency = Math.max(1, cfg.openai.concurrency);
       permitPool = new ServerPermitPool(1, maxConcurrency, true);
 
     } else {
