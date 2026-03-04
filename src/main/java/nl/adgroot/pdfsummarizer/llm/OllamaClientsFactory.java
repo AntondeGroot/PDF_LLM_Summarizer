@@ -21,9 +21,9 @@ public final class OllamaClientsFactory {
    * - if only 1 model is configured, reuse it for all servers
    * - if multiple models are configured, map by server index (wrap around)
    */
-  public static List<OllamaClient> create(AppConfig.OllamaConfig cfg) {
+  public static List<LlmClient> create(AppConfig.OllamaConfig cfg) {
 
-    List<OllamaClient> clients = new ArrayList<>();
+    List<LlmClient> clients = new ArrayList<>();
     int servers = Math.max(1, cfg.servers);
     int basePort = cfg.basePort;
     String path = cfg.generatePath;

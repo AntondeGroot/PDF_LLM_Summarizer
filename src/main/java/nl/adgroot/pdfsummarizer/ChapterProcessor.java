@@ -10,7 +10,7 @@ import java.util.concurrent.ExecutorService;
 
 import nl.adgroot.pdfsummarizer.PagePipeline.PageResult;
 import nl.adgroot.pdfsummarizer.config.AppConfig;
-import nl.adgroot.pdfsummarizer.llm.OllamaClient;
+import nl.adgroot.pdfsummarizer.llm.LlmClient;
 import nl.adgroot.pdfsummarizer.llm.ServerPermitPool;
 import nl.adgroot.pdfsummarizer.notes.NotesWriter;
 import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
@@ -26,7 +26,7 @@ public class ChapterProcessor {
       List<PdfObject> pages,
       String topic,
       PagePipeline pipeline,
-      List<OllamaClient> llms,
+      List<LlmClient> llms,
       ServerPermitPool permitPool,
       ExecutorService permitPoolExecutor,
       ExecutorService cpuPoolExecutor,

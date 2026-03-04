@@ -10,7 +10,8 @@ import java.util.concurrent.ExecutorService;
 
 import nl.adgroot.pdfsummarizer.config.AppConfig;
 import nl.adgroot.pdfsummarizer.config.ConfigLoader;
-import nl.adgroot.pdfsummarizer.llm.OllamaClient;
+import nl.adgroot.pdfsummarizer.llm.ChatGptClient;
+import nl.adgroot.pdfsummarizer.llm.LlmClient;
 import nl.adgroot.pdfsummarizer.llm.OllamaClientsFactory;
 import nl.adgroot.pdfsummarizer.llm.ServerPermitPool;
 import nl.adgroot.pdfsummarizer.notes.NotesWriter;
@@ -47,7 +48,7 @@ public class Main {
     NotesWriter writer = new NotesWriter();
     PdfPreviewComposer composer = new PdfPreviewComposer();
 
-    List<OllamaClient> llms = OllamaClientsFactory.create(cfg.ollama);
+    List<LlmClient> llms = OllamaClientsFactory.create(cfg.ollama);
     PagePipeline pipeline = new PagePipeline();
     ChapterProcessor chapterProcessor = new ChapterProcessor();
 
@@ -58,6 +59,40 @@ public class Main {
     PromptTemplate promptTemplate = PromptTemplate.load(Paths.get(
         Objects.requireNonNull(Main.class.getClassLoader().getResource("prompt.txt")).toURI()
     ));
+
+    boolean openaiEnabled = cfg.openai.enabled;
+    boolean ollamaEnabled = cfg.ollama.enabled;
+
+    if (cfg.openai.enabled && cfg.ollama.enabled) {
+      System.out.println("Both Ollama and Openai are enabled; Ollama will be used.");
+    }
+
+    if(ollamaEnabled){
+      llms = new ArrayList<>(OllamaClientsFactory.create(cfg.ollama));
+      servers = Math.max(1, cfg.ollama.servers);
+      perServerMax = Math.max(1, cfg.ollama.concurrency);
+      permitPool = new ServerPermitPool(servers, perServerMax, true);
+    }else if (openaiEnabled) {
+      String apiKey = System.getenv("OPENAI_API_KEY");
+      if (apiKey == null || apiKey.isBlank()) {
+        throw new IllegalStateException("""
+        OPENAI_API_KEY environment variable not set.
+
+        macOS/Linux:
+            export OPENAI_API_KEY="sk-..."
+
+        Windows PowerShell:
+            setx OPENAI_API_KEY "sk-..."
+        """);
+      }
+      llms = List.of(new ChatGptClient(cfg.openai, apiKey));
+      // client-side concurrency cap for OpenAI
+      int maxConcurrency = Math.max(1, cfg.ollama.concurrency);
+      permitPool = new ServerPermitPool(1, maxConcurrency, true);
+
+    } else {
+      throw new IllegalStateException("No LLM backend enabled. Enable either cfg.openai.enabled or cfg.ollama.enabled.");
+    }
 
     try (AppExecutors exec = AppExecutors.create(cfg)) {
       ExecutorService permitPoolExecutor = exec.permitPoolExecutor();
