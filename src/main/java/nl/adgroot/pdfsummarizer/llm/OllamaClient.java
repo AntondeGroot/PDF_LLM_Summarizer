@@ -12,7 +12,6 @@ import nl.adgroot.pdfsummarizer.llm.records.LlmMetrics;
 import nl.adgroot.pdfsummarizer.llm.records.LlmResult;
 import okhttp3.Call;
 import okhttp3.Callback;
-import okhttp3.Dispatcher;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -20,7 +19,7 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
 
-public class OllamaClient {
+public class OllamaClient implements LlmClient{
 
   private static final MediaType JSON = MediaType.parse("application/json");
   private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -34,23 +33,13 @@ public class OllamaClient {
     this.url = url;
     this.model = model;
     this.temperature = cfg.temperature;
-
-    Duration t = Duration.ofSeconds(cfg.timeoutSeconds);
-
-    Dispatcher dispatcher = new Dispatcher();
-    dispatcher.setMaxRequests(cfg.concurrency);
-    dispatcher.setMaxRequestsPerHost(cfg.concurrency);
-
-    this.http = new OkHttpClient.Builder()
-        .dispatcher(dispatcher)
-        .connectTimeout(t)
-        .readTimeout(t)
-        .writeTimeout(t)
-        .callTimeout(t)
-        .build();
+    this.http = HttpClientFactory.create(
+        Duration.ofSeconds(cfg.timeoutSeconds),
+        cfg.concurrency);
   }
 
   /** Async / parallel-friendly API: uses OkHttp enqueue(). */
+  @Override
   public CompletableFuture<LlmResult> generateAsync(String prompt) {
     ObjectNode req = MAPPER.createObjectNode();
     req.put("model", model);
@@ -104,6 +93,11 @@ public class OllamaClient {
     return future;
   }
 
+  @Override
+  public String getName() {
+    return "Ollama";
+  }
+
   private static String readBodySafely(ResponseBody body) {
     if (body == null) return "";
     try {
@@ -113,6 +107,7 @@ public class OllamaClient {
     }
   }
 
+  @Override
   public String getUrl() {
     return url;
   }

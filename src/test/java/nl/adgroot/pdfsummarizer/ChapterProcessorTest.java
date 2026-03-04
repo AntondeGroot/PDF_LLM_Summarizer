@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.concurrent.*;
 
 import nl.adgroot.pdfsummarizer.config.AppConfig;
+import nl.adgroot.pdfsummarizer.llm.LlmClient;
 import nl.adgroot.pdfsummarizer.llm.OllamaClient;
 import nl.adgroot.pdfsummarizer.llm.ServerPermitPool;
 import nl.adgroot.pdfsummarizer.llm.records.LlmMetrics;
@@ -65,7 +66,7 @@ class ChapterProcessorTest {
     PagePipeline pipeline = new StubPipeline();
 
     // Other deps (mostly unused by the stub pipeline)
-    List<OllamaClient> llms = List.of(); // not used by StubPipeline
+    List<LlmClient> llms = List.of(); // not used by StubPipeline
     ServerPermitPool permits = new ServerPermitPool(1, 1, true);
 
     PromptTemplate template = new PromptTemplate("{{content}}");
@@ -115,7 +116,7 @@ class ChapterProcessorTest {
   static class StubPipeline extends PagePipeline {
     @Override
     public CompletableFuture<PageResult> processPageAsync(
-        List<OllamaClient> llms,
+        List<LlmClient> llms,
         ServerPermitPool permits,
         ExecutorService permitPoolExecutor,
         ExecutorService cpuPoolExecutor,

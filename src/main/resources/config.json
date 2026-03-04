@@ -1,10 +1,19 @@
 {
   "ollama": {
+    "enabled": true,
     "servers": 2,
     "modelsPerServer": ["llama3.1:8b"],
     "concurrency": 2,
     "temperature": 0.3,
     "timeoutSeconds": 120
+  },
+  "openai": {
+    "enabled": false,
+    "baseUrl": "https://api.openai.com",
+    "responsesPath": "/v1/responses",
+    "model": "gpt-4.1-mini",
+    "timeoutSeconds": 120,
+    "concurrency": 4
   },
   "chunking": {
     "maxCharsPerChunk": 9000,

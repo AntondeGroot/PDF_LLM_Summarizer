@@ -4,8 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class AppConfig {
-
   public OllamaConfig ollama = new OllamaConfig();
+  public OpenAiConfig openai = new OpenAiConfig();
   public ChunkingConfig chunking = new ChunkingConfig();
   public CardsConfig cards = new CardsConfig();
   public PreviewConfig preview = new PreviewConfig();
@@ -14,6 +14,7 @@ public class AppConfig {
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class OllamaConfig {
     // NEW: number of servers (e.g. 3 -> ports 11434..11436)
+    public boolean enabled = true;
     public int servers = 1;
 
     // NEW: models to use (per server). If you only provide 1, it will be used for all servers.
@@ -29,6 +30,15 @@ public class AppConfig {
     public String host = "127.0.0.1";
     public int basePort = 11434;
     public String generatePath = "/api/generate";
+  }
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public static class OpenAiConfig {
+    public boolean enabled = false;
+    public String baseUrl = "https://api.openai.com";
+    public String responsesPath = "/v1/responses";
+    public String model = "gpt-4.1-mini";
+    public int timeoutSeconds = 120;
+    public int concurrency = 4;
   }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
