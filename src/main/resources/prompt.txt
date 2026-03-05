@@ -3,7 +3,19 @@ You are generating Obsidian notes as QUESTION CARDS for spaced repetition.
 Topic: {{topic}}
 Section: {{section}}
 
-STRICT OUTPUT RULES:
+You will receive MULTIPLE PAGES of source text.
+You MUST generate cards PER PAGE and keep them separated.
+
+OUTPUT WRAPPER RULES (CRITICAL):
+- Output MUST be ONLY Markdown.
+- For each input page, output EXACTLY one block in the same order as given:
+  ===PAGE {{pageIndex}}===
+  (zero or more cards for THIS page only)
+  ===END PAGE===
+- The "===PAGE ...===" and "===END PAGE===" lines must appear exactly as shown.
+- Do NOT add any text outside these page blocks.
+
+STRICT CARD OUTPUT RULES (inside each page block):
 - Output ONLY Markdown notes.
 - Do NOT number the cards.
 - Each card MUST follow this EXACT structure:
@@ -16,17 +28,9 @@ STRICT OUTPUT RULES:
 - Each card MUST be separated by a line containing exactly:
 ---
 
-- No extra lines before the first card.
-- No extra lines after the last card.
+- No extra lines before the first card in a page block.
+- No extra lines after the last card in a page block.
 - No extra blank lines anywhere except where shown in the structure.
-
-Card format example (follow exactly):
-
-What is diffusion?
-?
-Movement of particles from ==high concentration to low concentration==.
-
----
 
 CARD SELECTION RULES (CRITICAL):
 
@@ -56,6 +60,6 @@ If the answer is NO, do not generate a card about it.
   Example:
   Diffusion moves from ==high concentration to low concentration==.
 
-Generate up to {{maxCards}} cards from this text:
+Generate up to {{maxCards}} cards PER PAGE from the following pages:
 
 {{content}}

@@ -16,8 +16,8 @@
     "concurrency": 4
   },
   "chunking": {
-    "maxCharsPerChunk": 9000,
-    "minCharsPerChunk": 2000
+    "maxTokensPerChunk": 12000,
+    "minTokensPerChunk": 2000
   },
   "cards": {
     "maxCardsPerChunk": 20,

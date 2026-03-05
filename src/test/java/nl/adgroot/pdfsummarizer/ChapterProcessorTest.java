@@ -7,13 +7,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.*;
 
 import nl.adgroot.pdfsummarizer.config.AppConfig;
 import nl.adgroot.pdfsummarizer.llm.LlmClient;
-import nl.adgroot.pdfsummarizer.llm.OllamaClient;
 import nl.adgroot.pdfsummarizer.llm.ServerPermitPool;
-import nl.adgroot.pdfsummarizer.llm.records.LlmMetrics;
 import nl.adgroot.pdfsummarizer.notes.NotesWriter;
 import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfObject;
@@ -114,8 +113,9 @@ class ChapterProcessorTest {
 
   /** A pipeline that returns a deterministic PageResult without calling LLMs. */
   static class StubPipeline extends PagePipeline {
+
     @Override
-    public CompletableFuture<PageResult> processPageAsync(
+    public CompletableFuture<Map<Integer, List<String>>> processBatchAsync(
         List<LlmClient> llms,
         ServerPermitPool permits,
         ExecutorService permitPoolExecutor,
@@ -124,17 +124,15 @@ class ChapterProcessorTest {
         AppConfig cfg,
         String topic,
         String chapterTitle,
-        int pageIndexInChapter,
-        int pageNr,
-        int nrPagesInChapter,
-        String pageText,
+        List<PdfObject> batch,
         ProgressTracker tracker
     ) {
-      // One "card" per page. Use index to make verification stable.
-      List<String> cards = List.of("Card for index=" + pageIndexInChapter);
-      return CompletableFuture.completedFuture(
-          new PageResult(pageIndexInChapter, pageNr, cards, 1, new LlmMetrics(0, 0, 0, 0, 0))
-      );
+      // Return one "card" per PdfObject, keyed by PdfObject.index
+      Map<Integer, List<String>> out = new java.util.HashMap<>();
+      for (var p : batch) {
+        out.put(p.getIndex(), List.of("Card for index=" + p.getIndex()));
+      }
+      return CompletableFuture.completedFuture(out);
     }
   }
 
