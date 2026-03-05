@@ -69,7 +69,7 @@ class ParsedPdfIntegrationTest {
     assertEquals(24 , parsed.getTableOfContent().getLast().start,
         "Expected first chapter title of ParsedPDF");
     assertEquals(26, parsed.getTableOfContent().getLast().end,
-        "Expected first chapter title of ParsedPDF");
+        "Expected last chapter title of ParsedPDF to and at.");
   }
 
   @Test

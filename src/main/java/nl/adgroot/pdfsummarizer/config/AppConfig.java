@@ -43,8 +43,8 @@ public class AppConfig {
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class ChunkingConfig {
-    public int maxCharsPerChunk = 9000;
-    public int minCharsPerChunk = 2000;
+    public int maxTokensPerChunk = 12000;
+    public int minTokensPerChunk = 2000;
   }
 
   @JsonIgnoreProperties(ignoreUnknown = true)

@@ -30,26 +30,40 @@ public class PdfPreviewComposer {
       for (int i = 0; i < pages.size(); i++) {
         PdfObject p = pages.get(i);
 
+        // Use original page size as template (but don't import it)
         PDDocument single = p.getDocument();
         if (single == null || single.getNumberOfPages() == 0) continue;
 
-        // 1) original page
-        PDPage original = single.getPage(0);
-        out.importPage(original);
+        PDRectangle mediaBox = single.getPage(0).getMediaBox();
 
-        // 2) notes page (from PdfObject itself)
-        if (p.hasNotes()) {
-          PDRectangle mediaBox = original.getMediaBox();
+        // 1) TEXT PAGE (extracted from PDF)
+        {
           PDPage textPage = new PDPage(mediaBox);
           out.addPage(textPage);
 
+          String s = p.getTextReadFromPdf();
+          if (s == null) s = "";
+
+          // Keep your debug prefix behavior
+          String debug = p.getIndex() + p.getChapter() + s;
+          System.out.println(debugNonAscii("ABOUT TO WRITE (PDF TEXT): " + debug));
+
+          writeWrappedText(out, textPage, debug, font);
+        }
+
+        // 2) NOTES PAGE (LLM notes)
+        if (p.hasNotes()) {
+          PDPage notesPage = new PDPage(mediaBox);
+          out.addPage(notesPage);
+
           String s = p.getNotes();
+          if (s == null) s = "";
 
-          // keep your debug prefix behavior (unchanged)
-          s = p.getIndex() + p.getChapter() + s;
-          System.out.println(debugNonAscii("ABOUT TO WRITE: " + s));
+          // Keep your debug prefix behavior
+          String debug = p.getIndex() + p.getChapter() + s;
+          System.out.println(debugNonAscii("ABOUT TO WRITE (NOTES): " + debug));
 
-          writeWrappedText(out, textPage, s, font);
+          writeWrappedText(out, notesPage, debug, font);
         }
       }
 
