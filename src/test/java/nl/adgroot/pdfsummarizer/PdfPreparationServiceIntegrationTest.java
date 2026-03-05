@@ -49,13 +49,13 @@ class PdfPreparationServiceIntegrationTest {
     assertEquals(5, prepared.parsed().getContent().size(), "Expected parsed content trimmed to 5 pages");
 
     // Strongest assertion: the PdfObject text should match the first content markers.
-    assertTrue(selected.get(0).getTextReadFromPdf().contains("CONTENT-0"),
+    assertTrue(selected.getFirst().getTextReadFromPdf().contains("CONTENT-0"),
         "First selected PdfObject should contain marker CONTENT-0 in its text");
     assertTrue(selected.get(1).getTextReadFromPdf().contains("CONTENT-1"),
         "Second selected PdfObject should contain marker CONTENT-1 in its text");
 
     // Optional: also validate actual PDF rendering/text extraction from split PDDocument pages.
-    String textPage0 = extractSinglePageText(selected.get(0).getDocument());
+    String textPage0 = extractSinglePageText(selected.getFirst().getDocument());
     assertTrue(textPage0.contains("CONTENT-0"),
         "First selected PDF page should contain marker CONTENT-0 but was "+textPage0);
     assertTrue(extractSinglePageText(selected.get(1).getDocument()).contains("CONTENT-1"),

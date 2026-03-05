@@ -158,7 +158,7 @@ class TableOfContentsConverterTest {
     List<Chapter> result = convertTableOfContentsToChapterList(toc, 136);
 
     assertEquals(2, result.size());
-    assertEquals("Chapter 1: Intro", result.get(0).header);
+    assertEquals("Chapter 1: Intro", result.getFirst().header);
     assertEquals("Chapter 2: Next", result.get(1).header);
   }
 
@@ -169,11 +169,11 @@ class TableOfContentsConverterTest {
     List<Chapter> result = convertTableOfContentsToChapterList(toc, 136);
 
     assertEquals(2, result.size());
-    assertEquals("ISO 27001 2022 update", result.get(0).header);
-    assertEquals(50, result.get(0).start);
-    assertEquals(69, result.get(0).end);
-    assertEquals("Node.js 18 and 20", result.get(1).header);
-    assertEquals(70, result.get(1).start);
+    assertEquals("ISO 27001 2022 update", result.getFirst().header);
+    assertEquals(50, result.getFirst().start);
+    assertEquals(69, result.getFirst().end);
+    assertEquals("Node.js 18 and 20", result.getLast().header);
+    assertEquals(70, result.getLast().start);
   }
 
   @Test
@@ -226,8 +226,8 @@ class TableOfContentsConverterTest {
     List<Chapter> chapters = convertTableOfContentsToChapterList(toc, 42);
 
     assertEquals(3, chapters.size());
-    assertEquals(1, chapters.get(0).start);
-    assertEquals(9, chapters.get(0).end);
+    assertEquals(1, chapters.getFirst().start);
+    assertEquals(9, chapters.getFirst().end);
     assertEquals(10, chapters.get(1).start);
     assertEquals(19, chapters.get(1).end);
     assertEquals(20, chapters.get(2).start);
@@ -263,12 +263,12 @@ class TableOfContentsConverterTest {
     List<Chapter> chapters = convertTableOfContentsToChapterList(toc, 20);
 
     assertEquals(2, chapters.size());
-    assertEquals("Intro", chapters.get(0).header);
-    assertEquals(5, chapters.get(0).start);
-    assertEquals(9, chapters.get(0).end);
-    assertEquals("Setup", chapters.get(1).header);
-    assertEquals(10, chapters.get(1).start);
-    assertEquals(20, chapters.get(1).end);
+    assertEquals("Intro", chapters.getFirst().header);
+    assertEquals(5, chapters.getFirst().start);
+    assertEquals(9, chapters.getFirst().end);
+    assertEquals("Setup", chapters.getLast().header);
+    assertEquals(10, chapters.getLast().start);
+    assertEquals(20, chapters.getLast().end);
   }
 
   @Test
@@ -282,8 +282,8 @@ class TableOfContentsConverterTest {
     List<Chapter> chapters = convertTableOfContentsToChapterList(toc, 20);
 
     assertEquals(2, chapters.size());
-    assertEquals("Chapter 1: Real start", chapters.get(0).header);
-    assertEquals("Chapter 2: Next", chapters.get(1).header);
+    assertEquals("Chapter 1: Real start", chapters.getFirst().header);
+    assertEquals("Chapter 2: Next", chapters.getLast().header);
   }
 
   @Test
@@ -292,8 +292,8 @@ class TableOfContentsConverterTest {
     List<Chapter> chapters = convertTableOfContentsToChapterList(toc, 9);
 
     assertEquals(2, chapters.size());
-    assertEquals(1, chapters.get(0).start);
-    assertEquals(4, chapters.get(0).end);
+    assertEquals(1, chapters.getFirst().start);
+    assertEquals(4, chapters.getFirst().end);
   }
 
   @Test
@@ -314,7 +314,7 @@ class TableOfContentsConverterTest {
     List<Chapter> chapters = convertTableOfContentsToChapterList(toc, 30);
 
     assertEquals(2, chapters.size());
-    assertEquals(9, chapters.get(0).end);
-    assertEquals(30, chapters.get(1).end);
+    assertEquals(9, chapters.getFirst().end);
+    assertEquals(30, chapters.getLast().end);
   }
 }
