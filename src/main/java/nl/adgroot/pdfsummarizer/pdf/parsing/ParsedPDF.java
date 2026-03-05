@@ -22,14 +22,11 @@ public class ParsedPDF {
     for (int i = TOC_begin; i <= TOC_end; i++) {
       TOC.append(pages.get(i));
     }
-    // todo: determine matcher for TOC
-
-    tableOfContent = convertTableOfContentsToChapterList(TOC.toString());
+    tableOfContent = convertTableOfContentsToChapterList(TOC.toString(), pages.size());
 
     // determine content without TOC
     pages = pages.subList(TOC_end+1, pages.size());// pages might still contain an About section between TOC and the First Chapter.
     pages = TableOfContentsUtil.getStringPagesWithoutTOC(pages, tableOfContent);
-    tableOfContent.getLast().end = pages.size(); // this value was not yet determined, and there is not yet a good way to determine it.
     List<Page> pages3 = new ArrayList<>();
     offset = -tableOfContent.getFirst().start;
 

@@ -13,7 +13,6 @@ import java.util.Objects;
 import nl.adgroot.pdfsummarizer.pdf.parsing.ParsedPDF;
 import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxTextExtractor;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 class ParsedPdfIntegrationTest {
@@ -55,7 +54,6 @@ class ParsedPdfIntegrationTest {
         "Expected first chapter title of ParsedPDF");
   }
 
-  @Disabled
   @Test
   void lastChapter_InTableOfContents_HasCorrectRange() throws Exception{
     // GIVEN
@@ -86,7 +84,6 @@ class ParsedPdfIntegrationTest {
         "Expected the first page to start on the first chapter");
   }
 
-  @Disabled
   @Test
   void ParsedContentPage_EndsOnLastChapterPage() throws Exception {
     // GIVEN
