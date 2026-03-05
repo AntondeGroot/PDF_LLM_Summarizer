@@ -102,7 +102,7 @@ class PdfPreviewComposerTest {
     }
 
     // Only one page has notes
-    pages.get(0).setNotes("ONLY-NOTES");
+    pages.getFirst().setNotes("ONLY-NOTES");
 
     Path out = Files.createTempFile("preview-missing-", ".pdf");
 
