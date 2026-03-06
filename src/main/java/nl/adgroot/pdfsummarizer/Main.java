@@ -2,148 +2,61 @@ package nl.adgroot.pdfsummarizer;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-
 import nl.adgroot.pdfsummarizer.config.AppConfig;
 import nl.adgroot.pdfsummarizer.config.ConfigLoader;
-import nl.adgroot.pdfsummarizer.llm.ChatGptClient;
-import nl.adgroot.pdfsummarizer.llm.LlmClient;
-import nl.adgroot.pdfsummarizer.llm.OllamaClientsFactory;
-import nl.adgroot.pdfsummarizer.llm.ServerPermitPool;
 import nl.adgroot.pdfsummarizer.notes.NotesWriter;
-import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
-import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxPdfSplitter;
-import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxTextExtractor;
-import nl.adgroot.pdfsummarizer.pdf.parsing.PdfObject;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfPreparationService;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfPreviewComposer;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PreparedPdf;
+import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxPdfSplitter;
+import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxTextExtractor;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplate;
-import nl.adgroot.pdfsummarizer.text.Chapter;
 
 public class Main {
 
   public static void main(String[] args) throws Exception {
-
-    Path pdfPath = Paths.get(
-        Objects.requireNonNull(Main.class.getClassLoader().getResource("Learning Docker.pdf")).toURI()
-    );
-
+    if (args.length < 1) {
+      System.err.println("Usage: pdfsummarizer <path-to-pdf>");
+      System.exit(1);
+    }
+    Path pdfPath = Paths.get(args[0]);
     Path configPath = Paths.get(
         Objects.requireNonNull(Main.class.getClassLoader().getResource("config.json")).toURI()
     );
+
     AppConfig cfg = ConfigLoader.load(configPath);
-
-    // init
-    PdfBoxTextExtractor extractor = new PdfBoxTextExtractor();
-    PdfBoxPdfSplitter pdfSplitter = new PdfBoxPdfSplitter();
-    PdfPreparationService pdfPreparationService = new PdfPreparationService(extractor, pdfSplitter);
-
-    String topic = filenameToTopic(pdfPath.getFileName().toString());
-
-    NotesWriter writer = new NotesWriter();
-    PdfPreviewComposer composer = new PdfPreviewComposer();
-
-    List<LlmClient> llms = OllamaClientsFactory.create(cfg.ollama);
-    PagePipeline pipeline = new PagePipeline();
-    ChapterProcessor chapterProcessor = new ChapterProcessor();
-
-    int servers = Math.max(1, cfg.ollama.servers);
-    int perServerMax = Math.max(1, cfg.ollama.concurrency);
-    ServerPermitPool permitPool = new ServerPermitPool(servers, perServerMax, true);
 
     PromptTemplate promptTemplate = PromptTemplate.load(Paths.get(
         Objects.requireNonNull(Main.class.getClassLoader().getResource("prompt.txt")).toURI()
     ));
 
-    boolean openaiEnabled = cfg.openai.enabled;
-    boolean ollamaEnabled = cfg.ollama.enabled;
+    PreparedPdf prepared = new PdfPreparationService(
+        new PdfBoxTextExtractor(), new PdfBoxPdfSplitter()
+    ).loadAndPrepare(pdfPath, cfg);
 
-    if (cfg.openai.enabled && cfg.ollama.enabled) {
-      System.out.println("Both Ollama and Openai are enabled; Ollama will be used.");
-    }
+    String topic = filenameToTopic(pdfPath.getFileName().toString());
 
-    if(ollamaEnabled){
-      llms = new ArrayList<>(OllamaClientsFactory.create(cfg.ollama));
-      servers = Math.max(1, cfg.ollama.servers);
-      perServerMax = Math.max(1, cfg.ollama.concurrency);
-      permitPool = new ServerPermitPool(servers, perServerMax, true);
-    }else if (openaiEnabled) {
-      String apiKey = System.getenv("OPENAI_API_KEY");
-      if (apiKey == null || apiKey.isBlank()) {
-        throw new IllegalStateException("""
-        OPENAI_API_KEY environment variable not set.
-
-        macOS/Linux:
-            export OPENAI_API_KEY="sk-..."
-
-        Windows PowerShell:
-            setx OPENAI_API_KEY "sk-..."
-        """);
-      }
-      llms = List.of(new ChatGptClient(cfg.openai, apiKey));
-      // client-side concurrency cap for OpenAI
-      int maxConcurrency = Math.max(1, cfg.openai.concurrency);
-      permitPool = new ServerPermitPool(1, maxConcurrency, true);
-
-    } else {
-      throw new IllegalStateException("No LLM backend enabled. Enable either cfg.openai.enabled or cfg.ollama.enabled.");
-    }
+    LlmFactory.LlmSetup llmSetup = LlmFactory.create(cfg);
 
     try (AppExecutors exec = AppExecutors.create(cfg)) {
-      ExecutorService permitPoolExecutor = exec.permitPoolExecutor();
-      ExecutorService cpuPoolExecutor = exec.cpuPool();
-      ExecutorService writerPool = exec.writerPool();
-
-      // load + align + preview-select -> returns PdfObjects
-      PreparedPdf prepared = pdfPreparationService.loadAndPrepare(pdfPath, cfg);
-      var parsedPdf = prepared.parsed();
-      List<PdfObject> pages = prepared.pdfPages();
-
-      int totalPages = parsedPdf.getContent().size();
-      ProgressTracker tracker = new ProgressTracker(totalPages);
-
-      List<CompletableFuture<Void>> chapterWrites = new ArrayList<>();
-      Path outDir = Path.of("/Users/adgroot/Documents");
-
-      for (Chapter chapter : parsedPdf.getTableOfContent()) {
-        CompletableFuture<Void> writeFuture = chapterProcessor.processChapterAsync(
-            chapter,
-            pages,
-            topic,
-            pipeline,
-            llms,
-            permitPool,
-            permitPoolExecutor,
-            cpuPoolExecutor,
-            writerPool,
-            promptTemplate,
-            cfg,
-            tracker,
-            writer,
-            outDir
-        );
-
-        chapterWrites.add(writeFuture);
-      }
-
-      CompletableFuture.allOf(chapterWrites.toArray(new CompletableFuture[0])).join();
-
-      // preview output (only if enabled and combinePdfWithNotes)
-      if (cfg.preview.enabled && cfg.preview.combinePdfWithNotes) {
-        Path out = outDir.resolve("preview-combined.pdf");
-        composer.composeOriginalPlusTextPages(pages, out);
-      }
-
-      System.out.println("Done. All chapters written.");
+      new AppRunner(
+          new ChapterProcessor(),
+          new PagePipeline(),
+          new NotesWriter(),
+          new PdfPreviewComposer()
+      ).run(
+          prepared, topic, cfg,
+          llmSetup.llms(), llmSetup.permitPool(),
+          exec, promptTemplate,
+          Path.of("/Users/adgroot/Documents")
+      );
     }
+
+    System.out.println("Done. All chapters written.");
   }
 
-  private static String filenameToTopic(String filename) {
+  static String filenameToTopic(String filename) {
     String noExt = filename.replaceAll("(?i)\\.pdf$", "");
     return noExt.replace('_', ' ').replace('-', ' ').trim();
   }

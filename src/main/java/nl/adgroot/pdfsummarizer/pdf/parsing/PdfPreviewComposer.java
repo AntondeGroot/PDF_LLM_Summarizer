@@ -62,6 +62,8 @@ public class PdfPreviewComposer {
           System.out.println(debugNonAscii("ABOUT TO WRITE (NOTES): " + debug));
 
           writeWrappedText(out, notesPage, debug, font);
+        } else {
+          System.out.println("no notes were found for page:"+p.getOriginalPageNr());
         }
       }
 
