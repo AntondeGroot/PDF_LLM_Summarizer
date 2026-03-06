@@ -19,7 +19,6 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.text.PDFTextStripper;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -27,7 +26,6 @@ import org.junit.jupiter.api.Test;
  *
  * PDFBox 3.x compatible (uses Standard14Fonts).
  */
-@Disabled
 class PdfPreparationServiceIntegrationTest {
 
   @Test
@@ -131,9 +129,9 @@ class PdfPreparationServiceIntegrationTest {
       addPageWithText(doc, "Preface\nThis is not a TOC page.\n");
 
       // first content page must contain chapter header so getStringPagesWithoutTOC can find it
-      addPageWithText(doc, "Chapter 1: Intro\nCONTENT-1\n");
+      addPageWithText(doc, "Chapter 1: Intro\nCONTENT-0\n");
 
-      for (int i = 2; i < contentPages; i++) {
+      for (int i = 1; i < contentPages; i++) {
         addPageWithText(doc, "CONTENT-" + i + "\n");
       }
 

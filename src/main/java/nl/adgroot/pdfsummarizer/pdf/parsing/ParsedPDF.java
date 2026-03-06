@@ -24,9 +24,18 @@ public class ParsedPDF {
     }
     tableOfContent = convertTableOfContentsToChapterList(TOC.toString(), pages.size());
 
+    // Track total page count before stripping, so we can compute originalPageIndex later.
+    // contentStartIndex = number of leading pages stripped (TOC + preface).
+    // After both subList calls: pages.size() == originalCount - strippedLeadingPages
+    // => contentStartIndex = originalCount - pages.size() (after stripping)
+    int originalPageCount = pages.size();
+
     // determine content without TOC
     pages = pages.subList(TOC_end+1, pages.size());// pages might still contain an About section between TOC and the First Chapter.
     pages = TableOfContentsUtil.getStringPagesWithoutTOC(pages, tableOfContent);
+
+    // 0-based index of pages[0] in the original pagesWithTOC list
+    int contentStartIndex = originalPageCount - pages.size();
     List<Page> pages3 = new ArrayList<>();
     offset = -tableOfContent.getFirst().start;
 
@@ -55,6 +64,7 @@ public class ParsedPDF {
       // Only attach chapter if we're within the mapped range
       if (pdfPageNr >= currentPdfStart && pdfPageNr <= currentPdfEnd) {
         page.chapter = currentChapter.header;
+        page.setOriginalPageIndex(contentStartIndex + i);
         pages3.add(page);
       }
     }
@@ -75,7 +85,7 @@ public class ParsedPDF {
 
   public void setContext(int nrLinesOfContext){
     for (Chapter chapter: tableOfContent){
-      for (int i = chapter.start+offset; i < chapter.end+offset-1; i++) {
+      for (int i = chapter.start+offset; i < chapter.end+offset-1 && i < content.size(); i++) {
         Page page = content.get(i);
         if (i>chapter.start+offset){
           page.setContextBefore(content.get(i-1).getLastLines(nrLinesOfContext));

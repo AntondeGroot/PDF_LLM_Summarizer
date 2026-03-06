@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 
 import nl.adgroot.pdfsummarizer.config.AppConfig;
@@ -46,9 +45,6 @@ public class ChapterProcessor {
         .filter(p -> chapterHeader.equals(p.getChapter()))
         .toList();
 
-    // Collect cards per chapter-page-index (0..pagesInChapter.size-1) to build chapter file deterministically.
-    Map<Integer, List<String>> cardsByChapterIndex = new ConcurrentHashMap<>();
-
     // Batch by tokens
     int maxTokensPerChunk = resolveMaxTokensPerChunk(cfg);
 
@@ -75,23 +71,13 @@ public class ChapterProcessor {
           )
           .thenAcceptAsync(cardsBySelectedIndex -> {
 
-            // 1) Fill PdfObject.notes (per page)
             for (PdfObject p : batch) {
               List<String> cards = cardsBySelectedIndex.getOrDefault(p.getIndex(), List.of());
+              p.setCards(cards);
 
               CardsPage perPage = new CardsPage(topic, chapterHeader);
               for (String card : cards) perPage.addCard(card);
-
               p.setNotes(perPage.hasContent() ? perPage.toString() : "");
-            }
-
-            // 2) Also store card lists for chapter output (chapter-local ordering)
-            for (int i = 0; i < pagesInChapter.size(); i++) {
-              PdfObject p = pagesInChapter.get(i);
-              if (!batch.contains(p)) continue;
-
-              List<String> cards = cardsBySelectedIndex.getOrDefault(p.getIndex(), List.of());
-              cardsByChapterIndex.put(i, cards);
             }
 
           }, writerPool)
@@ -112,10 +98,9 @@ public class ChapterProcessor {
 
           CardsPage chapterCards = new CardsPage(topic, chapterHeader);
 
-          // Add cards in chapter order
-          for (int i = 0; i < pagesInChapter.size(); i++) {
-            List<String> cards = cardsByChapterIndex.getOrDefault(i, List.of());
-            for (String card : cards) {
+          // Add cards in chapter order from each PdfObject
+          for (PdfObject p : pagesInChapter) {
+            for (String card : p.getCards()) {
               chapterCards.addCard(card);
             }
           }

@@ -44,8 +44,7 @@ public class PdfPreviewComposer {
           String s = p.getTextReadFromPdf();
           if (s == null) s = "";
 
-          // Keep your debug prefix behavior
-          String debug = p.getIndex() + p.getChapter() + s;
+          String debug = "[PDF p." + p.getOriginalPageNr() + "] " + p.getChapter() + "\n" + s;
           System.out.println(debugNonAscii("ABOUT TO WRITE (PDF TEXT): " + debug));
 
           writeWrappedText(out, textPage, debug, font);
@@ -59,8 +58,7 @@ public class PdfPreviewComposer {
           String s = p.getNotes();
           if (s == null) s = "";
 
-          // Keep your debug prefix behavior
-          String debug = p.getIndex() + p.getChapter() + s;
+          String debug = "[PDF p." + p.getOriginalPageNr() + "] " + p.getChapter() + "\n" + s;
           System.out.println(debugNonAscii("ABOUT TO WRITE (NOTES): " + debug));
 
           writeWrappedText(out, notesPage, debug, font);
