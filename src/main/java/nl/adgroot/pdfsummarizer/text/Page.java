@@ -3,6 +3,7 @@ package nl.adgroot.pdfsummarizer.text;
 public class Page {
   public String chapter;
   public int pageNr;
+  public int originalPageIndex = -1; // 0-based index in the original pagesWithTOC list
   public String content;
   public String contextBefore;
   public String contextAfter;
@@ -21,6 +22,14 @@ public class Page {
 
   public int getPageNr(){
     return pageNr;
+  }
+
+  public void setOriginalPageIndex(int originalPageIndex) {
+    this.originalPageIndex = originalPageIndex;
+  }
+
+  public int getOriginalPageIndex() {
+    return originalPageIndex;
   }
 
   public void setContextAfter(String context){

@@ -91,7 +91,7 @@ class PdfPreviewComposerOrderingAndMatchingTest {
           String noteText = pageText(result, (2 * pos) + 2);
 
           assertTrue(origText.contains("TEXT-" + k),
-              "Expected ORIG-" + k + " at output original page pos=" + pos);
+              "Expected TEXT-" + k + " at output text page pos=" + pos);
 
           assertTrue(noteText.contains("NOTE-" + k),
               "Expected NOTE-" + k + " at output notes page pos=" + pos);

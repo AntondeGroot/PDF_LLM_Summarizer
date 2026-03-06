@@ -28,32 +28,26 @@ public class PdfPreparationService {
 
     ParsedPDF parsedPdf = new ParsedPDF(pagesWithTOC, cfg.cards.nrOfLinesUsedForContext);
 
-    // Align pdfPagesAll to parsedPdf.getContent()
-    List<PDDocument> alignedPdfPages = alignPdfPagesToParsedContent(pdfPagesAll, parsedPdf);
-
-    // Build PdfObjects 1:1 from FULL content (before preview selection)
+    // Build PdfObjects using the exact original-PDF index stored on each Page.
+    // This handles leading pages, trailing pages, and inter-chapter gaps correctly.
     List<Page> fullContent = parsedPdf.getContent();
     int total = fullContent.size();
 
-    // Defensive: if alignment produced fewer docs than content, clamp to min
-    int n = Math.min(total, alignedPdfPages.size());
-
-    List<PdfObject> allObjects = new ArrayList<>(n);
-    for (int i = 0; i < n; i++) {
+    List<PdfObject> allObjects = new ArrayList<>(total);
+    for (int i = 0; i < total; i++) {
       Page p = fullContent.get(i);
-      PDDocument doc = alignedPdfPages.get(i);
+      int origIdx = p.getOriginalPageIndex();
 
-      String chapter = p.chapter;
-      String text = p.toString();
+      if (origIdx < 0 || origIdx >= pdfPagesAll.size()) {
+        // Safety: original index was not set or is out of range — clamp here
+        parsedPdf.setContent(new ArrayList<>(fullContent.subList(0, i)));
+        total = i;
+        break;
+      }
 
-      // IMPORTANT: index is now the ORIGINAL content index (stable identity)
-      allObjects.add(new PdfObject(i, chapter, doc, text));
-    }
-
-    // If alignment forced clamping, keep ParsedPDF content consistent with objects
-    if (n != total) {
-      parsedPdf.setContent(new ArrayList<>(fullContent.subList(0, n)));
-      total = n;
+      PDDocument doc = pdfPagesAll.get(origIdx);
+      int originalPageNr = origIdx + 1; // 1-based page number in the original PDF
+      allObjects.add(new PdfObject(i, originalPageNr, p.chapter, doc, p.toString()));
     }
 
     // Apply preview selection ONCE (indexes are content-indexes into the "allObjects" list)
@@ -72,43 +66,4 @@ public class PdfPreparationService {
     return new PreparedPdf(parsedPdf, allObjects);
   }
 
-  private static List<PDDocument> alignPdfPagesToParsedContent(
-      List<PDDocument> pdfPages,
-      ParsedPDF parsedPdf
-  ) {
-    int contentSize = parsedPdf.getContent().size();
-    if (contentSize <= 0 || pdfPages == null || pdfPages.isEmpty()) {
-      return List.of();
-    }
-
-    // If the splitter returned more pages than ParsedPDF content,
-    // drop the difference from the START.
-    int diff = pdfPages.size() - contentSize;
-
-    List<PDDocument> pages = pdfPages.subList(diff-2, pdfPages.size()-2);
-    if(pages.size() != contentSize){
-      throw new RuntimeException("Malformed Pdf pages");
-    }
-    return pages;
-  }
-
-  private static String makeNeedle(String s) {
-    if (s == null) return "";
-    String compact = s.replace("\r", "").trim().replaceAll("\\s+", " ");
-    int len = Math.min(80, compact.length());
-    return compact.substring(0, len);
-  }
-
-  private static int findFirstPageContaining(List<String> pages, String needle) {
-    if (pages == null || pages.isEmpty()) return -1;
-    if (needle == null || needle.isBlank()) return -1;
-
-    for (int i = 0; i < pages.size(); i++) {
-      String p = pages.get(i);
-      if (p == null) continue;
-      String compact = p.replace("\r", "").trim().replaceAll("\\s+", " ");
-      if (compact.contains(needle)) return i;
-    }
-    return -1;
-  }
 }
