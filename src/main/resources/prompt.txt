@@ -8,11 +8,15 @@ You MUST generate cards PER PAGE and keep them separated.
 
 OUTPUT WRAPPER RULES (CRITICAL):
 - Output MUST be ONLY Markdown.
-- For each input page, output EXACTLY one block in the same order as given:
-  ===PAGE {{pageIndex}}===
+- Input pages are numbered sequentially starting at 1. For each input page, output EXACTLY one block in the same order:
+  ===PAGE 1===
   (zero or more cards for THIS page only)
   ===END PAGE===
-- The "===PAGE ...===" and "===END PAGE===" lines must appear exactly as shown.
+  ===PAGE 2===
+  (zero or more cards for THIS page only)
+  ===END PAGE===
+  (and so on for each page)
+- The "===PAGE N===" and "===END PAGE===" lines must appear exactly as shown, with N matching the input page number.
 - Do NOT add any text outside these page blocks.
 
 STRICT CARD OUTPUT RULES (inside each page block):

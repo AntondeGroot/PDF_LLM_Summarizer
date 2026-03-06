@@ -144,8 +144,9 @@ public class PagePipeline {
 
   static String renderBatchContent(List<PdfObject> batch) {
     StringBuilder sb = new StringBuilder();
-    for (PdfObject p : batch) {
-      sb.append("===PAGE ").append(p.getIndex()).append("===\n");
+    for (int i = 0; i < batch.size(); i++) {
+      PdfObject p = batch.get(i);
+      sb.append("===PAGE ").append(i + 1).append("===\n");
 
       String text = p.getTextReadFromPdf() == null ? "" : p.getTextReadFromPdf();
       sb.append(text);
@@ -208,15 +209,16 @@ public class PagePipeline {
               // 2) Parse cards per page using your existing CardsParser
               Map<Integer, List<String>> cardsByPageIndex = new HashMap<>();
 
-              for (PdfObject p : batch) {
-                int idx = p.getIndex();
-                String perPage = pageMd.getOrDefault(idx, "");
+              for (int i = 0; i < batch.size(); i++) {
+                PdfObject p = batch.get(i);
+                int seqNr = i + 1;
+                String perPage = pageMd.getOrDefault(seqNr, "");
 
                 List<Card> cards = cardsParser.parse(perPage);
                 List<String> cardStrings = new ArrayList<>(cards.size());
                 for (Card c : cards) cardStrings.add(c.toString());
 
-                cardsByPageIndex.put(idx, cardStrings);
+                cardsByPageIndex.put(p.getIndex(), cardStrings);
               }
 
               // Tracking once per batch (you can refine this later)
