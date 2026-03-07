@@ -5,7 +5,8 @@
     "modelsPerServer": ["llama3.1:8b"],
     "concurrency": 2,
     "temperature": 0.3,
-    "timeoutSeconds": 120
+    "timeoutSeconds": 120,
+    "localBatching": false
   },
   "openai": {
     "enabled": false,
@@ -25,8 +26,8 @@
   },
   "preview": {
     "enabled": true,
-    "randomPages": true,
-    "nrPages": 5,
+    "randomPages": false,
+    "nrPages": 10,
     "combinePdfWithNotes": true
   },
   "output": {
