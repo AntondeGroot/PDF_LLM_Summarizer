@@ -30,6 +30,10 @@ public class AppConfig {
     public String host = "127.0.0.1";
     public int basePort = 11434;
     public String generatePath = "/api/generate";
+
+    // When true, multiple pages are batched into a single LLM request.
+    // When false, each page is sent as a separate request.
+    public boolean localBatching = true;
   }
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class OpenAiConfig {

@@ -51,8 +51,9 @@ public class ChapterProcessor {
     // Since PromptTemplate has no getter, compute base prompt tokens by rendering with empty content.
     int basePromptTokens = estimateBasePromptTokens(promptTemplate, cfg, topic, chapterHeader);
 
-    List<List<PdfObject>> batches =
-        splitIntoBatchesByEstimatedTokens(chapterHeader, pagesInChapter, maxTokensPerChunk, basePromptTokens);
+    List<List<PdfObject>> batches = cfg.ollama.localBatching
+        ? splitIntoBatchesByEstimatedTokens(chapterHeader, pagesInChapter, maxTokensPerChunk, basePromptTokens)
+        : pagesInChapter.stream().map(List::of).toList();
 
     List<CompletableFuture<Void>> batchFutures = new ArrayList<>(batches.size());
 
