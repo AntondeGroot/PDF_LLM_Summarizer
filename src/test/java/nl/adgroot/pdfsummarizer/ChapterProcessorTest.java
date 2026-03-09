@@ -21,6 +21,7 @@ import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
 import nl.adgroot.pdfsummarizer.notes.records.CardsPage;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfObject;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplate;
+import nl.adgroot.pdfsummarizer.prompts.PromptTemplates;
 import nl.adgroot.pdfsummarizer.text.Chapter;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -66,13 +67,13 @@ class ChapterProcessorTest {
     Chapter chapter = new Chapter(chapterHeader, 1, 0);
 
     // Pipeline stub: returns 1 "card" per page
-    PagePipeline pipeline = new StubPipeline();
+    BatchPipeline pipeline = new StubPipeline();
 
     // Other deps (mostly unused by the stub pipeline)
     List<LlmClient> llms = List.of(); // not used by StubPipeline
     ServerPermitPool permits = new ServerPermitPool(1, 1, true);
 
-    PromptTemplate template = new PromptTemplate("{{content}}");
+    PromptTemplates prompts = new PromptTemplates(new PromptTemplate("{{content}}"), null, null, null);
     AppConfig cfg = new AppConfig();
     cfg.cards.maxCardsPerChunk = 10;
 
@@ -94,7 +95,7 @@ class ChapterProcessorTest {
         permitExec,
         cpuExec,
         writerExec,
-        template,
+        prompts,
         cfg,
         tracker,
         writer,
@@ -125,9 +126,9 @@ class ChapterProcessorTest {
     }
 
     Chapter chapter = new Chapter(chapterHeader, 1, 0);
-    PagePipeline pipeline = new StubPipeline();
+    BatchPipeline pipeline = new StubPipeline();
     ServerPermitPool permits = new ServerPermitPool(1, 1, true);
-    PromptTemplate template = new PromptTemplate("{{content}}");
+    PromptTemplates prompts = new PromptTemplates(new PromptTemplate("{{content}}"), null, null, null);
     AppConfig cfg = new AppConfig();
     cfg.cards.maxCardsPerChunk = 10;
     ProgressTracker tracker = new ProgressTracker(n);
@@ -135,7 +136,7 @@ class ChapterProcessorTest {
     new ChapterProcessor().processChapterAsync(
         chapter, pages, "Topic", pipeline,
         List.of(), permits, permitExec, cpuExec, writerExec,
-        template, cfg, tracker, new NoopNotesWriter(),
+        prompts, cfg, tracker, new NoopNotesWriter(),
         Files.createTempDirectory("chapterprocessor-cards-test-")
     ).get(2, TimeUnit.SECONDS);
 
@@ -161,9 +162,9 @@ class ChapterProcessorTest {
     }
 
     Chapter chapter = new Chapter(chapterHeader, 1, 0);
-    PagePipeline pipeline = new StubPipeline();
+    BatchPipeline pipeline = new StubPipeline();
     ServerPermitPool permits = new ServerPermitPool(1, 1, true);
-    PromptTemplate template = new PromptTemplate("{{content}}");
+    PromptTemplates prompts = new PromptTemplates(new PromptTemplate("{{content}}"), null, null, null);
     AppConfig cfg = new AppConfig();
     cfg.cards.maxCardsPerChunk = 10;
     ProgressTracker tracker = new ProgressTracker(n);
@@ -180,7 +181,7 @@ class ChapterProcessorTest {
     new ChapterProcessor().processChapterAsync(
         chapter, pages, "Topic", pipeline,
         List.of(), permits, permitExec, cpuExec, writerExec,
-        template, cfg, tracker, capturingWriter,
+        prompts, cfg, tracker, capturingWriter,
         Files.createTempDirectory("chapterprocessor-order-test-")
     ).get(2, TimeUnit.SECONDS);
 
@@ -200,8 +201,8 @@ class ChapterProcessorTest {
   // Stubs
   // ----------------------------
 
-  /** A pipeline that returns a deterministic PageResult without calling LLMs. */
-  static class StubPipeline extends PagePipeline {
+  /** A pipeline stub that returns a deterministic result without calling LLMs. */
+  static class StubPipeline implements BatchPipeline {
 
     @Override
     public CompletableFuture<Map<Integer, List<String>>> processBatchAsync(
@@ -209,12 +210,13 @@ class ChapterProcessorTest {
         ServerPermitPool permits,
         ExecutorService permitPoolExecutor,
         ExecutorService cpuPoolExecutor,
-        PromptTemplate promptTemplate,
+        PromptTemplates prompts,
         AppConfig cfg,
         String topic,
         String chapterTitle,
         List<PdfObject> batch,
-        ProgressTracker tracker
+        ProgressTracker tracker,
+        Path outDir
     ) {
       // Return one "card" per PdfObject, keyed by PdfObject.index
       Map<Integer, List<String>> out = new java.util.HashMap<>();

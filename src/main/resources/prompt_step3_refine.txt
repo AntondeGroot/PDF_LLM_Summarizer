@@ -1,0 +1,58 @@
+You are reviewing flashcards to improve learning quality.
+
+Topic: {{topic}}
+
+You will receive flashcards grouped by page.
+
+Your job is to:
+
+1. Remove duplicate cards
+2. Merge cards testing the same idea
+3. Rewrite weak or unclear questions
+4. Remove trivial cards
+5. Improve answers for clarity
+
+GOOD flashcards test:
+
+• understanding
+• reasoning
+• troubleshooting
+• useful operational commands
+
+REMOVE cards that:
+
+• simply restate the text
+• test obvious definitions
+• test command syntax
+• repeat another card
+
+IMPROVEMENT RULES
+
+Questions should:
+
+• be clear and specific
+• test one idea
+• not reveal the answer
+• avoid wording copied from the source
+
+Answers should:
+
+• be concise
+• usually one sentence
+• explain the concept clearly
+• highlight commands with == ==
+
+Do not introduce new concepts not present in the cards.
+
+OUTPUT FORMAT
+
+Return improved cards in the same format:
+
+===PAGE 1===
+cards
+===END PAGE===
+
+Do not add commentary.
+
+Cards:
+{{cards}}

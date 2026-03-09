@@ -12,6 +12,7 @@ import nl.adgroot.pdfsummarizer.pdf.parsing.PreparedPdf;
 import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxPdfSplitter;
 import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxTextExtractor;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplate;
+import nl.adgroot.pdfsummarizer.prompts.PromptTemplates;
 
 public class Main {
 
@@ -27,9 +28,32 @@ public class Main {
 
     AppConfig cfg = ConfigLoader.load(configPath);
 
-    PromptTemplate promptTemplate = PromptTemplate.load(Paths.get(
-        Objects.requireNonNull(Main.class.getClassLoader().getResource("prompt.txt")).toURI()
-    ));
+    boolean threeStage = cfg.ollama.pipeline3StepsMode;
+
+    PromptTemplates prompts;
+    BatchPipeline pipeline;
+
+    if (threeStage) {
+      PromptTemplate step1 = PromptTemplate.load(Paths.get(
+          Objects.requireNonNull(Main.class.getClassLoader().getResource("prompt_step1_concepts.txt")).toURI()
+      ));
+      PromptTemplate step2 = PromptTemplate.load(Paths.get(
+          Objects.requireNonNull(Main.class.getClassLoader().getResource("prompt_step2_cards.txt")).toURI()
+      ));
+      PromptTemplate step3 = PromptTemplate.load(Paths.get(
+          Objects.requireNonNull(Main.class.getClassLoader().getResource("prompt_step3_refine.txt")).toURI()
+      ));
+      prompts = new PromptTemplates(null, step1, step2, step3);
+      pipeline = new ThreeStagePagePipeline();
+      System.out.println("Pipeline: three-stage (concept extraction → card generation → refinement)");
+    } else {
+      PromptTemplate single = PromptTemplate.load(Paths.get(
+          Objects.requireNonNull(Main.class.getClassLoader().getResource("prompt.txt")).toURI()
+      ));
+      prompts = new PromptTemplates(single, null, null, null);
+      pipeline = new PagePipeline();
+      System.out.println("Pipeline: single-stage");
+    }
 
     PreparedPdf prepared = new PdfPreparationService(
         new PdfBoxTextExtractor(), new PdfBoxPdfSplitter()
@@ -42,13 +66,13 @@ public class Main {
     try (AppExecutors exec = AppExecutors.create(cfg)) {
       new AppRunner(
           new ChapterProcessor(),
-          new PagePipeline(),
+          pipeline,
           new NotesWriter(),
           new PdfPreviewComposer()
       ).run(
           prepared, topic, cfg,
           llmSetup.llms(), llmSetup.permitPool(),
-          exec, promptTemplate,
+          exec, prompts,
           Path.of("/Users/adgroot/Documents")
       );
     }

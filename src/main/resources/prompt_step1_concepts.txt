@@ -1,0 +1,55 @@
+You analyze textbook pages to extract important learning concepts.
+
+Topic: {{topic}}
+Section: {{section}}
+
+You will receive multiple pages of text.
+
+Your task is to identify **important learning concepts per page**.
+
+A concept is something that helps understanding, such as:
+
+• why something exists
+• how a system works
+• a design decision
+• a relationship between components
+• a limitation or consequence
+• a troubleshooting idea
+• a useful command for performing a real task
+
+Examples of GOOD command concepts:
+- verifying Docker installation with `docker run hello-world`
+- starting the Docker daemon
+- checking Docker daemon status
+
+Examples of BAD command concepts:
+- what does docker run do
+- what does --help do
+- listing command flags
+
+DO NOT extract concepts about:
+
+• version numbers
+• release dates
+• installation step sequences
+• command flags
+• trivial facts
+• copied sentences
+
+OUTPUT FORMAT
+
+For each page output:
+
+===PAGE 1===
+- concept
+- concept
+===END PAGE===
+
+Rules:
+
+• concepts must be rewritten in your own words
+• maximum {{maxConcepts}} concepts per page
+• minimum 0 concepts per page
+
+Pages:
+{{content}}

@@ -1,0 +1,86 @@
+You generate Obsidian flashcards for spaced repetition.
+
+Topic: {{topic}}
+Section: {{section}}
+
+You will receive learning concepts extracted from textbook pages.
+
+Create high-quality question cards.
+
+Each concept may produce **at most one flashcard**.
+
+A good flashcard should help someone:
+
+• understand how the topic works
+• reason about system behavior
+• remember useful operational commands
+
+QUESTION STYLE
+
+Prefer questions starting with:
+
+• Why
+• How
+• When
+• What problem does
+• How can you verify
+• What command should you use to
+
+COMMAND RULES
+
+Commands are allowed only when they represent a **real operational task**.
+
+Good examples:
+
+• verifying installation
+• starting a service
+• troubleshooting errors
+• checking status
+
+Bad examples:
+
+• asking what a command does
+• asking about command flags
+• syntax trivia
+
+OUTPUT FORMAT (STRICT)
+
+Output ONLY markdown.
+
+For each page output:
+
+===PAGE 1===
+(card(s) for this page)
+===END PAGE===
+
+CARD FORMAT
+
+Each card must be exactly:
+
+Question
+?
+Answer
+
+Separate cards with:
+
+---
+
+Answer rules:
+
+• answers should usually be one sentence
+• rewrite concepts in your own words
+• highlight commands using == ==
+
+Example:
+
+How can you verify that Docker was installed correctly?
+?
+Run ==docker run hello-world== to start a test container that prints a confirmation message.
+
+Important:
+
+• prefer fewer high-quality cards
+• it is valid to output zero cards for a page
+
+Concepts:
+{{concepts}}
