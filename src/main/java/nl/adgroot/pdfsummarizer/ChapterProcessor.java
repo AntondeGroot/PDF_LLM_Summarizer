@@ -15,7 +15,7 @@ import nl.adgroot.pdfsummarizer.notes.NotesWriter;
 import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
 import nl.adgroot.pdfsummarizer.notes.records.CardsPage;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfObject;
-import nl.adgroot.pdfsummarizer.prompts.PromptTemplate;
+import nl.adgroot.pdfsummarizer.prompts.PromptTemplates;
 import nl.adgroot.pdfsummarizer.text.Chapter;
 
 public class ChapterProcessor {
@@ -24,13 +24,13 @@ public class ChapterProcessor {
       Chapter chapter,
       List<PdfObject> pages,
       String topic,
-      PagePipeline pipeline,
+      BatchPipeline pipeline,
       List<LlmClient> llms,
       ServerPermitPool permitPool,
       ExecutorService permitPoolExecutor,
       ExecutorService cpuPoolExecutor,
       ExecutorService writerPool,
-      PromptTemplate promptTemplate,
+      PromptTemplates prompts,
       AppConfig cfg,
       ProgressTracker tracker,
       NotesWriter writer,
@@ -48,8 +48,8 @@ public class ChapterProcessor {
     // Batch by tokens
     int maxTokensPerChunk = resolveMaxTokensPerChunk(cfg);
 
-    // Since PromptTemplate has no getter, compute base prompt tokens by rendering with empty content.
-    int basePromptTokens = estimateBasePromptTokens(promptTemplate, cfg, topic, chapterHeader);
+    // Compute base prompt tokens by rendering the primary template with empty content.
+    int basePromptTokens = estimateBasePromptTokens(prompts, cfg, topic, chapterHeader);
 
     List<List<PdfObject>> batches = cfg.ollama.localBatching
         ? splitIntoBatchesByEstimatedTokens(chapterHeader, pagesInChapter, maxTokensPerChunk, basePromptTokens)
@@ -63,12 +63,13 @@ public class ChapterProcessor {
               permitPool,
               permitPoolExecutor,
               cpuPoolExecutor,
-              promptTemplate,
+              prompts,
               cfg,
               topic,
               chapterHeader,
               batch,
-              tracker
+              tracker,
+              outDir
           )
           .thenAcceptAsync(cardsBySelectedIndex -> {
 
@@ -124,11 +125,6 @@ public class ChapterProcessor {
   /**
    * Splits pages into batches so sum(ceil(len/4)) <= maxTokensPerChunk.
    * Always puts at least 1 page into a batch.
-   *
-   * Also logs:
-   * - pages indexes in this batch
-   * - total chars and tokens of batch content
-   * - estimated total prompt tokens = basePromptTokens + batchContentTokens
    */
   private static List<List<PdfObject>> splitIntoBatchesByEstimatedTokens(
       String chapterHeader,
@@ -207,28 +203,26 @@ public class ChapterProcessor {
     }
   }
 
-  /**
-   * Token estimate: ceil(length/4).
-   */
+  /** Token estimate: ceil(length/4). */
   private static int estimateTokens(String s) {
     if (s == null || s.isEmpty()) return 0;
     return (s.length() + 3) / 4;
   }
 
   /**
-   * Estimate the "base prompt" token count by rendering the template with empty content.
-   * This works with your PromptTemplate (no getter needed).
+   * Estimate base prompt token count by rendering the primary template with empty content.
    */
   private static int estimateBasePromptTokens(
-      PromptTemplate promptTemplate,
+      PromptTemplates prompts,
       AppConfig cfg,
       String topic,
       String chapterHeader
   ) {
-    String base = promptTemplate.render(Map.of(
+    String base = prompts.primary().render(Map.of(
         "topic", topic,
         "section", chapterHeader,
         "maxCards", String.valueOf(cfg.cards.maxCardsPerChunk),
+        "maxConcepts", String.valueOf(cfg.cards.maxConceptsPerPage),
         "content", ""
     ));
     return estimateTokens(base);

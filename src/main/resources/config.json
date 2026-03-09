@@ -6,7 +6,8 @@
     "concurrency": 2,
     "temperature": 0.3,
     "timeoutSeconds": 120,
-    "localBatching": false
+    "localBatching": false,
+    "pipeline3StepsMode": true
   },
   "openai": {
     "enabled": false,
@@ -22,7 +23,8 @@
   },
   "cards": {
     "maxCardsPerChunk": 20,
-    "nrOfLinesUsedForContext": 3
+    "nrOfLinesUsedForContext": 3,
+    "maxConceptsPerPage": 10
   },
   "preview": {
     "enabled": true,

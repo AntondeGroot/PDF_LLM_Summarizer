@@ -1,5 +1,6 @@
 package nl.adgroot.pdfsummarizer;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -19,8 +20,9 @@ import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
 import nl.adgroot.pdfsummarizer.notes.records.Card;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfObject;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplate;
+import nl.adgroot.pdfsummarizer.prompts.PromptTemplates;
 
-public class PagePipeline {
+public class PagePipeline implements BatchPipeline {
 
   // Debug counter to verify parallelism (in-flight page pipelines)
   private static final AtomicInteger IN_FLIGHT = new AtomicInteger(0);
@@ -158,28 +160,29 @@ public class PagePipeline {
   }
 
   /**
-   * Batch pages into a single LLM request.
-   *
-   * IMPORTANT: This assumes your prompt.txt already contains the MULTIPLE PAGES + wrapper rules.
+   * Implements {@link BatchPipeline}: single-stage batch (all pages → one LLM call).
+   * Uses {@code prompts.single()} as the prompt template.
    */
+  @Override
   public CompletableFuture<Map<Integer, List<String>>> processBatchAsync(
       List<LlmClient> llms,
       ServerPermitPool permits,
       ExecutorService permitPoolExecutor,
       ExecutorService cpuPoolExecutor,
-      PromptTemplate promptTemplate,
+      PromptTemplates prompts,
       AppConfig cfg,
       String topic,
       String chapterTitle,
       List<PdfObject> batch,
-      ProgressTracker tracker
+      ProgressTracker tracker,
+      Path outDir
   ) {
     long startNs = System.nanoTime();
     int nowInflight = IN_FLIGHT.incrementAndGet();
 
     String batchContent = renderBatchContent(batch);
 
-    String prompt = promptTemplate.render(Map.of(
+    String prompt = prompts.single().render(Map.of(
         "topic", topic,
         "section", chapterTitle,
         "maxCards", String.valueOf(cfg.cards.maxCardsPerChunk),

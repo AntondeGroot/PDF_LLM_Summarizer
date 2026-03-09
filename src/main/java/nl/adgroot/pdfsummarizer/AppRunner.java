@@ -13,19 +13,19 @@ import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfObject;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfPreviewComposer;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PreparedPdf;
-import nl.adgroot.pdfsummarizer.prompts.PromptTemplate;
+import nl.adgroot.pdfsummarizer.prompts.PromptTemplates;
 import nl.adgroot.pdfsummarizer.text.Chapter;
 
 public class AppRunner {
 
   private final ChapterProcessor chapterProcessor;
-  private final PagePipeline pipeline;
+  private final BatchPipeline pipeline;
   private final NotesWriter writer;
   private final PdfPreviewComposer composer;
 
   public AppRunner(
       ChapterProcessor chapterProcessor,
-      PagePipeline pipeline,
+      BatchPipeline pipeline,
       NotesWriter writer,
       PdfPreviewComposer composer
   ) {
@@ -42,7 +42,7 @@ public class AppRunner {
       List<LlmClient> llms,
       ServerPermitPool permitPool,
       AppExecutors exec,
-      PromptTemplate promptTemplate,
+      PromptTemplates prompts,
       Path outDir
   ) throws Exception {
     List<PdfObject> pages = prepared.pdfPages();
@@ -60,7 +60,7 @@ public class AppRunner {
           chapter, pages, topic, pipeline,
           llms, permitPool,
           permitPoolExecutor, cpuPool, writerPool,
-          promptTemplate, cfg, tracker, writer, outDir
+          prompts, cfg, tracker, writer, outDir
       ));
     }
 

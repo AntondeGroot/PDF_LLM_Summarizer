@@ -34,6 +34,10 @@ public class AppConfig {
     // When true, multiple pages are batched into a single LLM request.
     // When false, each page is sent as a separate request.
     public boolean localBatching = true;
+
+    // "single"     false → uses prompt.txt (one LLM call per batch).
+    // "three-stage" true → uses prompt_step1_concepts.txt → prompt_step2_cards.txt → prompt_step3_refine.txt.
+    public boolean pipeline3StepsMode = false;
   }
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class OpenAiConfig {
@@ -55,6 +59,8 @@ public class AppConfig {
   public static class CardsConfig {
     public int maxCardsPerChunk = 12;
     public int nrOfLinesUsedForContext = 0;
+    // Used by the three-stage pipeline (Step 1): max concepts extracted per page.
+    public int maxConceptsPerPage = 10;
   }
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class PreviewConfig {

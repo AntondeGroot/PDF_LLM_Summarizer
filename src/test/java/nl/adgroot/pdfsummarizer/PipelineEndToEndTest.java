@@ -25,6 +25,7 @@ import nl.adgroot.pdfsummarizer.pdf.parsing.PreparedPdf;
 import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxPdfSplitter;
 import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxTextExtractor;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplate;
+import nl.adgroot.pdfsummarizer.prompts.PromptTemplates;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -280,7 +281,7 @@ class PipelineEndToEndTest {
       ).run(
           prepared, "Test Topic", cfg,
           llms, permitPool, exec,
-          new PromptTemplate("{{content}}"),
+          new PromptTemplates(new PromptTemplate("{{content}}"), null, null, null),
           outDir
       );
     }
