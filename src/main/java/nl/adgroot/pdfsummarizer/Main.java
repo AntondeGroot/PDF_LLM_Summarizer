@@ -17,11 +17,16 @@ import nl.adgroot.pdfsummarizer.prompts.PromptTemplates;
 public class Main {
 
   public static void main(String[] args) throws Exception {
-    if (args.length < 1) {
-      System.err.println("Usage: pdfsummarizer <path-to-pdf>");
+    if (args.length < 2) {
+      System.err.println("Usage: pdfsummarizer <path-to-pdf> <output-path>");
       System.exit(1);
     }
     Path pdfPath = Paths.get(args[0]);
+    if(!pdfPath.toString().endsWith(".pdf")){
+      System.err.println("argument 1 was not the path of a pdf file");
+      System.exit(1);
+    }
+    Path outputPath = Paths.get(args[1]);
     Path configPath = Paths.get(
         Objects.requireNonNull(Main.class.getClassLoader().getResource("config.json")).toURI()
     );
@@ -72,8 +77,7 @@ public class Main {
       ).run(
           prepared, topic, cfg,
           llmSetup.llms(), llmSetup.permitPool(),
-          exec, prompts,
-          Path.of("/Users/adgroot/Documents")
+          exec, prompts, outputPath
       );
     }
 
