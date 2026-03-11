@@ -52,6 +52,31 @@ Return improved cards in the same format:
 cards
 ===END PAGE===
 
+CARD FORMAT (STRICT)
+
+Each card must follow this EXACT three-line structure:
+
+Line 1: the question (may span multiple lines)
+Line 2: a line with ONLY the character ? — nothing else on that line
+Line 3: the answer
+
+CRITICAL: The `?` separator is ALWAYS on its own dedicated line.
+Do NOT put the `?` at the end of the question line.
+The question line ends with its natural punctuation (usually `?`), then the NEXT line is a standalone `?`.
+
+WRONG (do not do this):
+How can you verify that Docker was installed correctly?
+Run ==docker run hello-world== to start a test container.
+
+RIGHT:
+How can you verify that Docker was installed correctly?
+?
+Run ==docker run hello-world== to start a test container that prints a confirmation message.
+
+Separate multiple cards with a line containing exactly:
+
+---
+
 Do not add commentary.
 
 Cards:
