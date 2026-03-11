@@ -53,15 +53,27 @@ For each page output:
 (card(s) for this page)
 ===END PAGE===
 
-CARD FORMAT
+CARD FORMAT (STRICT)
 
-Each card must be exactly:
+Each card must follow this EXACT three-line structure:
 
-Question
+Line 1: the question (may span multiple lines)
+Line 2: a line with ONLY the character ? — nothing else on that line
+Line 3: the answer
+
+CRITICAL: The `?` separator is ALWAYS on its own dedicated line.
+The question line ends with its natural punctuation (usually `?`), then the NEXT line is a standalone `?`.
+
+WRONG (do not do this):
+How can you verify that Docker was installed correctly?
+Run ==docker run hello-world== to start a test container.
+
+RIGHT:
+How can you verify that Docker was installed correctly?
 ?
-Answer
+Run ==docker run hello-world== to start a test container that prints a confirmation message.
 
-Separate cards with:
+Separate multiple cards with a line containing exactly:
 
 ---
 
@@ -70,12 +82,6 @@ Answer rules:
 • answers should usually be one sentence
 • rewrite concepts in your own words
 • highlight commands using == ==
-
-Example:
-
-How can you verify that Docker was installed correctly?
-?
-Run ==docker run hello-world== to start a test container that prints a confirmation message.
 
 Important:
 
