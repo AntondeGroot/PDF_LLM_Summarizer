@@ -20,6 +20,8 @@ import nl.adgroot.pdfsummarizer.text.Chapter;
 
 public class ChapterProcessor {
 
+  private static final AppLogger log = AppLogger.getLogger(ChapterProcessor.class);
+
   public CompletableFuture<Void> processChapterAsync(
       Chapter chapter,
       List<PdfObject> pages,
@@ -38,7 +40,7 @@ public class ChapterProcessor {
   ) {
 
     final String chapterHeader = chapter.header;
-    System.out.println("Scheduling chapter: " + chapterHeader);
+    log.info("Scheduling chapter: " + chapterHeader);
 
     // Pages for this chapter, stable order
     List<PdfObject> pagesInChapter = pages.stream()
@@ -52,7 +54,8 @@ public class ChapterProcessor {
     int basePromptTokens = estimateBasePromptTokens(prompts, cfg, topic, chapterHeader);
 
     List<List<PdfObject>> batches = cfg.ollama.localBatching
-        ? splitIntoBatchesByEstimatedTokens(chapterHeader, pagesInChapter, maxTokensPerChunk, basePromptTokens)
+        ? splitIntoBatchesByEstimatedTokens(chapterHeader, pagesInChapter, maxTokensPerChunk,
+        basePromptTokens)
         : pagesInChapter.stream().map(List::of).toList();
 
     List<CompletableFuture<Void>> batchFutures = new ArrayList<>(batches.size());
@@ -78,16 +81,16 @@ public class ChapterProcessor {
               p.setCards(cards);
 
               CardsPage perPage = new CardsPage(topic, chapterHeader);
-              for (String card : cards) perPage.addCard(card);
+              for (String card : cards) {
+                perPage.addCard(card);
+              }
               p.setNotes(perPage.hasContent() ? perPage.toString() : "");
             }
 
           }, writerPool)
           .whenComplete((res, ex) -> {
             if (ex != null) {
-              synchronized (System.out) {
-                System.out.println("Batch task failed in chapter '" + chapterHeader + "': " + ex);
-              }
+              log.error("Batch task failed in chapter '" + chapterHeader + "': " + ex);
             }
           });
 
@@ -111,9 +114,9 @@ public class ChapterProcessor {
           try {
             if (chapterCards.hasContent()) {
               writer.writeCard(outDir, chapterCards);
-              synchronized (System.out) {
-                System.out.println("WROTE chapter: " + chapterHeader + " -> " + outDir.toAbsolutePath());
-              }
+              log.info("WROTE chapter: " + chapterHeader + " -> " + outDir.toAbsolutePath());
+            } else {
+              log.info("No notes were taken for " + chapterHeader);
             }
           } catch (IOException e) {
             throw new RuntimeException(e);
@@ -123,8 +126,8 @@ public class ChapterProcessor {
   }
 
   /**
-   * Splits pages into batches so sum(ceil(len/4)) <= maxTokensPerChunk.
-   * Always puts at least 1 page into a batch.
+   * Splits pages into batches so sum(ceil(len/4)) <= maxTokensPerChunk. Always puts at least 1 page
+   * into a batch.
    */
   private static List<List<PdfObject>> splitIntoBatchesByEstimatedTokens(
       String chapterHeader,
@@ -132,7 +135,9 @@ public class ChapterProcessor {
       int maxTokensPerChunk,
       int basePromptTokens
   ) {
-    if (pages == null || pages.isEmpty()) return List.of();
+    if (pages == null || pages.isEmpty()) {
+      return List.of();
+    }
 
     int maxTokens = Math.max(1, maxTokensPerChunk);
 
@@ -156,7 +161,8 @@ public class ChapterProcessor {
 
       // Would exceed?
       if (currentTokens + pageTokens > maxTokens) {
-        logBatch(chapterHeader, out.size() + 1, current, currentChars, currentTokens, basePromptTokens + currentTokens);
+        logBatch(chapterHeader, out.size() + 1, current, currentChars, currentTokens,
+            basePromptTokens + currentTokens);
 
         out.add(current);
 
@@ -173,7 +179,8 @@ public class ChapterProcessor {
     }
 
     if (!current.isEmpty()) {
-      logBatch(chapterHeader, out.size() + 1, current, currentChars, currentTokens, basePromptTokens + currentTokens);
+      logBatch(chapterHeader, out.size() + 1, current, currentChars, currentTokens,
+          basePromptTokens + currentTokens);
       out.add(current);
     }
 
@@ -190,22 +197,23 @@ public class ChapterProcessor {
   ) {
     List<Integer> indexes = batch.stream().map(PdfObject::getIndex).toList();
 
-    synchronized (System.out) {
-      System.out.printf(
-          "BATCH chapter='%s' batch=%d pages=%s chars=%d contentTokens≈%d promptTokens≈%d%n",
-          chapterHeader,
-          batchNr,
-          indexes,
-          chars,
-          contentTokens,
-          promptTokens
-      );
-    }
+    log.info(
+        "BATCH chapter='%s' batch=%d pages=%s chars=%d contentTokens≈%d promptTokens≈%d%n",
+        chapterHeader,
+        batchNr,
+        indexes,
+        chars,
+        contentTokens,
+        promptTokens);
   }
 
-  /** Token estimate: ceil(length/4). */
+  /**
+   * Token estimate: ceil(length/4).
+   */
   private static int estimateTokens(String s) {
-    if (s == null || s.isEmpty()) return 0;
+    if (s == null || s.isEmpty()) {
+      return 0;
+    }
     return (s.length() + 3) / 4;
   }
 

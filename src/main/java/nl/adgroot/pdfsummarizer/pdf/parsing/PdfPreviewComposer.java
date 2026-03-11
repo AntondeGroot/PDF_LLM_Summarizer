@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import nl.adgroot.pdfsummarizer.AppLogger;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -17,6 +18,7 @@ import org.apache.pdfbox.pdmodel.font.PDType0Font;
 public class PdfPreviewComposer {
 
   private static final String DEFAULT_FONT_RESOURCE = "/fonts/JetBrains/JetBrainsMono-Regular.ttf";
+  private static final AppLogger log = AppLogger.getLogger(PdfPreviewComposer.class);
 
   public void composeOriginalPlusTextPages(
       List<PdfObject> pages,
@@ -45,8 +47,7 @@ public class PdfPreviewComposer {
           if (s == null) s = "";
 
           String debug = "[PDF p." + p.getOriginalPageNr() + "] " + p.getChapter() + "\n" + s;
-          System.out.println(debugNonAscii("ABOUT TO WRITE (PDF TEXT): " + debug));
-
+          log.debug(debugNonAscii("ABOUT TO WRITE (PDF TEXT): " + debug));
           writeWrappedText(out, textPage, debug, font);
         }
 
@@ -59,11 +60,11 @@ public class PdfPreviewComposer {
           if (s == null) s = "";
 
           String debug = "[PDF p." + p.getOriginalPageNr() + "] " + p.getChapter() + "\n" + s;
-          System.out.println(debugNonAscii("ABOUT TO WRITE (NOTES): " + debug));
+          log.debug(debugNonAscii("ABOUT TO WRITE (NOTES): " + debug));
 
           writeWrappedText(out, notesPage, debug, font);
         } else {
-          System.out.println("no notes were found for page:"+p.getOriginalPageNr());
+          log.info("no notes were found for page:"+p.getOriginalPageNr());
         }
       }
 
@@ -183,7 +184,7 @@ public class PdfPreviewComposer {
       char c = token.charAt(i);
       String candidate = line.toString() + c;
       float w = font.getStringWidth(candidate) / 1000f * fontSize;
-      if (w <= maxWidth || line.length() == 0) {
+      if (w <= maxWidth || line.isEmpty()) {
         line.append(c);
       } else {
         out.add(line.toString());
@@ -191,7 +192,7 @@ public class PdfPreviewComposer {
         line.append(c);
       }
     }
-    if (line.length() > 0) out.add(line.toString());
+    if (!line.isEmpty()) out.add(line.toString());
     return out;
   }
 

@@ -38,6 +38,8 @@ public class ThreeStagePagePipeline implements BatchPipeline {
 
   private final CardsParser cardsParser;
 
+  private static final AppLogger log = AppLogger.getLogger(ThreeStagePagePipeline.class);
+
   public ThreeStagePagePipeline() {
     this(new DefaultCardsParser());
   }
@@ -76,12 +78,8 @@ public class ThreeStagePagePipeline implements BatchPipeline {
         .thenCompose(serverIndex -> {
           LlmClient llm = llms.get(serverIndex);
 
-          synchronized (System.out) {
-            System.out.printf(
-                "START 3-STAGE BATCH pages=%d chapter='%s' inflight=%d server=%d url=%s%n",
-                batch.size(), chapterTitle, nowInflight, serverIndex, llm.getUrl()
-            );
-          }
+          log.info("START 3-STAGE BATCH pages=%d chapter='%s' inflight=%d server=%d url=%s%n",
+              batch.size(), chapterTitle, nowInflight, serverIndex, llm.getUrl());
 
           // ── Step 1: extract concepts ──────────────────────────────────────
           return llm.generateAsync(step1Prompt)
@@ -144,22 +142,16 @@ public class ThreeStagePagePipeline implements BatchPipeline {
 
               .whenComplete((res, ex) -> {
                 int leftInflight = IN_FLIGHT.decrementAndGet();
-                long millis = (System.nanoTime() - startNs) / 1_000_000;
-                synchronized (System.out) {
-                  System.out.printf(
-                      "END   3-STAGE BATCH pages=%d chapter='%s' took=%dms inflight=%d server=%d %s%n",
-                      batch.size(), chapterTitle, millis, leftInflight, serverIndex,
-                      (ex != null ? "ERROR=" + ex : "")
-                  );
-                }
+                long seconds = (System.nanoTime() - startNs) / 1_000_000_000;
+                log.info("END   3-STAGE BATCH pages=%d chapter='%s' took=%ds inflight=%d server=%d %s%n",
+                    batch.size(), chapterTitle, seconds, leftInflight, serverIndex,
+                    (ex != null ? "ERROR=" + ex : ""));
               });
         });
   }
 
   private static void logStep(int step, String chapter, int pages) {
-    synchronized (System.out) {
-      System.out.printf("  STEP %d done chapter='%s' pages=%d%n", step, chapter, pages);
-    }
+    log.debug("  STEP %d done chapter='%s' pages=%d%n", step, chapter, pages);
   }
 
   /**
@@ -177,7 +169,7 @@ public class ThreeStagePagePipeline implements BatchPipeline {
           StandardOpenOption.CREATE, StandardOpenOption.APPEND
       );
     } catch (IOException e) {
-      System.err.println("Warning: could not write debug file: " + e.getMessage());
+      log.error("Warning: could not write debug file: " + e.getMessage());
     }
   }
 }

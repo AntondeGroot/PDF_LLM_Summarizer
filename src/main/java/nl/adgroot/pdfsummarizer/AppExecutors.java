@@ -13,6 +13,7 @@ public final class AppExecutors implements AutoCloseable {
   private final ExecutorService permitPoolExecutor;
   private final ExecutorService cpuPool;
   private final ExecutorService writerPool;
+  private static final AppLogger log = AppLogger.getLogger(AppExecutors.class);
 
   private AppExecutors(ExecutorService permitPoolExecutor, ExecutorService cpuPool, ExecutorService writerPool) {
     this.permitPoolExecutor = permitPoolExecutor;
@@ -80,7 +81,7 @@ public final class AppExecutors implements AutoCloseable {
     if (!es.awaitTermination(1, TimeUnit.MINUTES)) {
       es.shutdownNow();
       if (!es.awaitTermination(30, TimeUnit.SECONDS)) {
-        System.err.println("Executor did not terminate: " + name);
+        log.error("Executor did not terminate: " + name);
       }
     }
   }

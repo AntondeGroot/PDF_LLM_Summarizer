@@ -10,6 +10,13 @@ public class AppConfig {
   public CardsConfig cards = new CardsConfig();
   public PreviewConfig preview = new PreviewConfig();
   public OutputConfig output = new OutputConfig();
+  public LoggingConfig logging = new LoggingConfig();
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public static class LoggingConfig {
+    /** One of: DEBUG, INFO, WARN, ERROR */
+    public String level = "INFO";
+  }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class OllamaConfig {

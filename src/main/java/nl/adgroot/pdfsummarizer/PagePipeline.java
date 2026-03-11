@@ -26,7 +26,7 @@ public class PagePipeline implements BatchPipeline {
 
   // Debug counter to verify parallelism (in-flight page pipelines)
   private static final AtomicInteger IN_FLIGHT = new AtomicInteger(0);
-
+  private static final AppLogger log = AppLogger.getLogger(PagePipeline.class);
   public record PageResult(
       int index,
       int pageNr,
@@ -77,12 +77,9 @@ public class PagePipeline implements BatchPipeline {
     return serverIndexFuture.thenCompose(serverIndex -> {
       LlmClient llm = llms.get(serverIndex);
 
-      synchronized (System.out) {
-        System.out.printf(
-            "START idx=%d/%d chapter='%s' inflight=%d server=%d url=%s%n",
-            (pageIndexInChapter + 1), nrPagesInChapter, chapterTitle, nowInflight, serverIndex, llm.getUrl()
-        );
-      }
+      log.info(
+          "START idx=%d/%d chapter='%s' inflight=%d server=%d url=%s%n",
+          (pageIndexInChapter + 1), nrPagesInChapter, chapterTitle, nowInflight, serverIndex, llm.getUrl());
 
       return llm.generateAsync(prompt)
           .thenApplyAsync(result -> {
@@ -108,14 +105,10 @@ public class PagePipeline implements BatchPipeline {
             int leftInflight = IN_FLIGHT.decrementAndGet();
             long millis = (System.nanoTime() - startNs) / 1_000_000;
 
-            synchronized (System.out) {
-              System.out.printf(
-                  "END   idx=%d/%d chapter='%s' took=%dms inflight=%d server=%d %s%n",
-                  (pageIndexInChapter + 1), nrPagesInChapter, chapterTitle, millis, leftInflight,
-                  serverIndex,
-                  (ex != null ? "ERROR=" + ex : "")
-              );
-            }
+            log.info("END   idx=%d/%d chapter='%s' took=%dms inflight=%d server=%d %s%n",
+                (pageIndexInChapter + 1), nrPagesInChapter, chapterTitle, millis, leftInflight,
+                serverIndex,
+                (ex != null ? "ERROR=" + ex : ""));
           });
     });
   }
@@ -194,12 +187,8 @@ public class PagePipeline implements BatchPipeline {
     return serverIndexFuture.thenCompose(serverIndex -> {
       LlmClient llm = llms.get(serverIndex);
 
-      synchronized (System.out) {
-        System.out.printf(
-            "START BATCH pages=%d chapter='%s' inflight=%d server=%d url=%s%n",
-            batch.size(), chapterTitle, nowInflight, serverIndex, llm.getUrl()
-        );
-      }
+      log.info("START BATCH pages=%d chapter='%s' inflight=%d server=%d url=%s%n",
+          batch.size(), chapterTitle, nowInflight, serverIndex, llm.getUrl());
 
       return llm.generateAsync(prompt)
           .thenApplyAsync(result -> {
@@ -236,13 +225,9 @@ public class PagePipeline implements BatchPipeline {
             int leftInflight = IN_FLIGHT.decrementAndGet();
             long millis = (System.nanoTime() - startNs) / 1_000_000;
 
-            synchronized (System.out) {
-              System.out.printf(
-                  "END   BATCH pages=%d chapter='%s' took=%dms inflight=%d server=%d %s%n",
-                  batch.size(), chapterTitle, millis, leftInflight, serverIndex,
-                  (ex != null ? "ERROR=" + ex : "")
-              );
-            }
+            log.info("END   BATCH pages=%d chapter='%s' took=%dms inflight=%d server=%d %s%n",
+                batch.size(), chapterTitle, millis, leftInflight, serverIndex,
+                (ex != null ? "ERROR=" + ex : ""));
           });
     });
   }
