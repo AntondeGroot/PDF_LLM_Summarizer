@@ -5,7 +5,6 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Locale;
-import java.util.Objects;
 import nl.adgroot.pdfsummarizer.config.AppConfig;
 import nl.adgroot.pdfsummarizer.config.ConfigLoader;
 import nl.adgroot.pdfsummarizer.notes.NotesWriter;
@@ -26,11 +25,7 @@ public class Main {
 
    validateInputParameters(args);
 
-    Path configPath = Paths.get(
-        Objects.requireNonNull(Main.class.getClassLoader().getResource("config.json")).toURI()
-    );
-
-    AppConfig cfg = ConfigLoader.load(configPath);
+    AppConfig cfg = ConfigLoader.loadResource("config.json");
     AppLogger.configure(cfg);
 
     boolean threeStage = cfg.ollama.pipeline3StepsMode;
@@ -39,22 +34,14 @@ public class Main {
     BatchPipeline pipeline;
 
     if (threeStage) {
-      PromptTemplate step1 = PromptTemplate.load(Paths.get(
-          Objects.requireNonNull(Main.class.getClassLoader().getResource("prompt_step1_concepts.txt")).toURI()
-      ));
-      PromptTemplate step2 = PromptTemplate.load(Paths.get(
-          Objects.requireNonNull(Main.class.getClassLoader().getResource("prompt_step2_cards.txt")).toURI()
-      ));
-      PromptTemplate step3 = PromptTemplate.load(Paths.get(
-          Objects.requireNonNull(Main.class.getClassLoader().getResource("prompt_step3_refine.txt")).toURI()
-      ));
+      PromptTemplate step1 = PromptTemplate.loadResource("prompt_step1_concepts.txt");
+      PromptTemplate step2 = PromptTemplate.loadResource("prompt_step2_cards.txt");
+      PromptTemplate step3 = PromptTemplate.loadResource("prompt_step3_refine.txt");
       prompts = new PromptTemplates(null, step1, step2, step3);
       pipeline = new ThreeStagePagePipeline();
       log.info("Pipeline: three-stage (concept extraction → card generation → refinement)");
     } else {
-      PromptTemplate single = PromptTemplate.load(Paths.get(
-          Objects.requireNonNull(Main.class.getClassLoader().getResource("prompt.txt")).toURI()
-      ));
+      PromptTemplate single = PromptTemplate.loadResource("prompt.txt");
       prompts = new PromptTemplates(single, null, null, null);
       pipeline = new PagePipeline();
       log.info("Pipeline: single-stage");
