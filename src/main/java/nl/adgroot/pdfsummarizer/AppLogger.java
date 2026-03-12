@@ -17,66 +17,70 @@ public class AppLogger {
     static {
         ROOT.setUseParentHandlers(false);
 
-        // Console handler — coloured output, INFO+WARN to stdout, ERROR to stderr
-        Handler stdoutHandler = new StreamHandler(System.out, new Formatter() {
-            @Override
-            public String format(LogRecord record) {
-                String color = colorFor(record.getLevel());
-                return color + "[" + label(record.getLevel()) + "] " + record.getMessage() + RESET + System.lineSeparator();
-            }
-        }) {
-            @Override
-            public synchronized void publish(LogRecord record) {
-                if (record.getLevel().intValue() < Level.SEVERE.intValue()) {
-                    super.publish(record);
-                    flush();
-                }
-            }
-        };
-        stdoutHandler.setLevel(Level.ALL);
-
-        Handler stderrHandler = new StreamHandler(System.err, new Formatter() {
-            @Override
-            public String format(LogRecord record) {
-                String msg = RED + "[" + label(record.getLevel()) + "] " + record.getMessage() + RESET + System.lineSeparator();
-                if (record.getThrown() != null) {
-                    msg += RED + stackTraceOf(record.getThrown()) + RESET;
-                }
-                return msg;
-            }
-        }) {
-            @Override
-            public synchronized void publish(LogRecord record) {
-                if (record.getLevel().intValue() >= Level.SEVERE.intValue()) {
-                    super.publish(record);
-                    flush();
-                }
-            }
-        };
-        stderrHandler.setLevel(Level.ALL);
-
-        // File handler — plain text, no ANSI codes
-        try {
-            FileHandler fileHandler = new FileHandler("app.log", /* append= */ true);
-            fileHandler.setLevel(Level.ALL);
-            fileHandler.setFormatter(new Formatter() {
+        if ("true".equals(System.getProperty("pdfsummarizer.test"))) {
+            ROOT.setLevel(Level.OFF);
+        } else {
+            // Console handler — coloured output, INFO+WARN to stdout, ERROR to stderr
+            Handler stdoutHandler = new StreamHandler(System.out, new Formatter() {
                 @Override
-                public String format(LogRecord r) {
-                    String line = "[" + label(r.getLevel()) + "] " + r.getMessage() + System.lineSeparator();
-                    if (r.getThrown() != null) {
-                        line += stackTraceOf(r.getThrown());
-                    }
-                    return line;
+                public String format(LogRecord record) {
+                    String color = colorFor(record.getLevel());
+                    return color + "[" + label(record.getLevel()) + "] " + record.getMessage() + RESET + System.lineSeparator();
                 }
-            });
-            ROOT.addHandler(fileHandler);
-        } catch (IOException e) {
-            ROOT.warning("AppLogger: could not open log file: " + e.getMessage());
-        }
+            }) {
+                @Override
+                public synchronized void publish(LogRecord record) {
+                    if (record.getLevel().intValue() < Level.SEVERE.intValue()) {
+                        super.publish(record);
+                        flush();
+                    }
+                }
+            };
+            stdoutHandler.setLevel(Level.ALL);
 
-        ROOT.addHandler(stdoutHandler);
-        ROOT.addHandler(stderrHandler);
-        ROOT.setLevel(Level.INFO);
+            Handler stderrHandler = new StreamHandler(System.err, new Formatter() {
+                @Override
+                public String format(LogRecord record) {
+                    String msg = RED + "[" + label(record.getLevel()) + "] " + record.getMessage() + RESET + System.lineSeparator();
+                    if (record.getThrown() != null) {
+                        msg += RED + stackTraceOf(record.getThrown()) + RESET;
+                    }
+                    return msg;
+                }
+            }) {
+                @Override
+                public synchronized void publish(LogRecord record) {
+                    if (record.getLevel().intValue() >= Level.SEVERE.intValue()) {
+                        super.publish(record);
+                        flush();
+                    }
+                }
+            };
+            stderrHandler.setLevel(Level.ALL);
+
+            // File handler — plain text, no ANSI codes
+            try {
+                FileHandler fileHandler = new FileHandler("app.log", /* append= */ true);
+                fileHandler.setLevel(Level.ALL);
+                fileHandler.setFormatter(new Formatter() {
+                    @Override
+                    public String format(LogRecord r) {
+                        String line = "[" + label(r.getLevel()) + "] " + r.getMessage() + System.lineSeparator();
+                        if (r.getThrown() != null) {
+                            line += stackTraceOf(r.getThrown());
+                        }
+                        return line;
+                    }
+                });
+                ROOT.addHandler(fileHandler);
+            } catch (IOException e) {
+                System.err.println("AppLogger: could not open log file: " + e.getMessage());
+            }
+
+            ROOT.addHandler(stdoutHandler);
+            ROOT.addHandler(stderrHandler);
+            ROOT.setLevel(Level.INFO);
+        }
     }
 
     private static String colorFor(Level level) {
