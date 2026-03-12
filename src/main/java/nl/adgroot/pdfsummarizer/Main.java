@@ -13,58 +13,38 @@ import nl.adgroot.pdfsummarizer.pdf.parsing.PdfPreviewComposer;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PreparedPdf;
 import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxPdfSplitter;
 import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxTextExtractor;
-import nl.adgroot.pdfsummarizer.prompts.PromptTemplate;
-import nl.adgroot.pdfsummarizer.prompts.PromptTemplates;
 
 public class Main {
 
   private static final AppLogger log = AppLogger.getLogger(Main.class);
-  private static Path pdfPath;
-  private static Path outputPath;
-  public static void main(String[] args) throws Exception {
 
-   validateInputParameters(args);
+  record AppArgs(Path pdfPath, Path outputPath) {}
+
+  public static void main(String[] args) throws Exception {
+    AppArgs appArgs = validateInputParameters(args);
 
     AppConfig cfg = ConfigLoader.loadResource("config.json");
     AppLogger.configure(cfg);
 
-    boolean threeStage = cfg.ollama.pipeline3StepsMode;
-
-    PromptTemplates prompts;
-    BatchPipeline pipeline;
-
-    if (threeStage) {
-      PromptTemplate step1 = PromptTemplate.loadResource("prompt_step1_concepts.txt");
-      PromptTemplate step2 = PromptTemplate.loadResource("prompt_step2_cards.txt");
-      PromptTemplate step3 = PromptTemplate.loadResource("prompt_step3_refine.txt");
-      prompts = new PromptTemplates(null, step1, step2, step3);
-      pipeline = new ThreeStagePagePipeline();
-      log.info("Pipeline: three-stage (concept extraction → card generation → refinement)");
-    } else {
-      PromptTemplate single = PromptTemplate.loadResource("prompt.txt");
-      prompts = new PromptTemplates(single, null, null, null);
-      pipeline = new PagePipeline();
-      log.info("Pipeline: single-stage");
-    }
+    PipelineFactory.PipelineSetup pipelineSetup = PipelineFactory.create(cfg);
+    LlmFactory.LlmSetup llmSetup = LlmFactory.create(cfg);
 
     PreparedPdf prepared = new PdfPreparationService(
         new PdfBoxTextExtractor(), new PdfBoxPdfSplitter()
-    ).loadAndPrepare(pdfPath, cfg);
+    ).loadAndPrepare(appArgs.pdfPath(), cfg);
 
-    String topic = filenameToTopic(pdfPath.getFileName().toString());
-
-    LlmFactory.LlmSetup llmSetup = LlmFactory.create(cfg);
+    String topic = filenameToTopic(appArgs.pdfPath().getFileName().toString());
 
     try (AppExecutors exec = AppExecutors.create(cfg)) {
       new AppRunner(
           new ChapterProcessor(),
-          pipeline,
+          pipelineSetup.pipeline(),
           new NotesWriter(),
           new PdfPreviewComposer()
       ).run(
           prepared, topic, cfg,
           llmSetup.llms(), llmSetup.permitPool(),
-          exec, prompts, outputPath
+          exec, pipelineSetup.prompts(), appArgs.outputPath()
       );
     }
 
@@ -76,19 +56,20 @@ public class Main {
     return noExt.replace('_', ' ').replace('-', ' ').trim();
   }
 
-  static void validateInputParameters(String[] args){
+  static AppArgs validateInputParameters(String[] args) {
     if (args.length < 2) {
       log.error("Usage: pdfsummarizer <path-to-pdf> <output-path>");
       System.exit(1);
     }
 
+    Path pdfPath = null;
+    Path outputPath = null;
     try {
       pdfPath = Paths.get(args[0]).toAbsolutePath().normalize();
       outputPath = Paths.get(args[1]).toAbsolutePath().normalize();
     } catch (InvalidPathException e) {
       log.error("One of the provided paths is invalid", e);
       System.exit(1);
-      return;
     }
 
     if (!Files.exists(pdfPath) || !Files.isRegularFile(pdfPath)) {
@@ -112,5 +93,7 @@ public class Main {
       log.error("Output directory does not exist");
       System.exit(1);
     }
+
+    return new AppArgs(pdfPath, outputPath);
   }
 }
