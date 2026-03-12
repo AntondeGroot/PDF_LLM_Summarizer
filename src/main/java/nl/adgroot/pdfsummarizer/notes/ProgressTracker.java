@@ -33,7 +33,12 @@ public class ProgressTracker {
 
   /** Preferred: call this with Ollama metrics for richer status output. */
   public void finishPage(LlmMetrics metrics) {
-    donePages.incrementAndGet();
+    finishBatch(1, metrics);
+  }
+
+  /** Call once per completed batch; increments by the number of pages in the batch. */
+  public void finishBatch(int pageCount, LlmMetrics metrics) {
+    donePages.addAndGet(pageCount);
 
     if (metrics != null) {
       lastMetrics.set(metrics);
