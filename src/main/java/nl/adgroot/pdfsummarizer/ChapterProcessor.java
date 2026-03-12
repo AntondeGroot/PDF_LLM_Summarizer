@@ -115,9 +115,12 @@ public class ChapterProcessor {
             if (chapterCards.hasContent()) {
               writer.writeCard(outDir, chapterCards);
               log.info("WROTE chapter: " + chapterHeader + " -> " + outDir.toAbsolutePath());
-            } else {
+            } else if (!pagesInChapter.isEmpty()) {
+              // a chapter was planned but the prompt resulted in no notes
               log.info("No notes were taken for " + chapterHeader);
             }
+            // a chapter was not planned: for example during a preview run
+            // that means that "no notes taken" is perfectly okay!
           } catch (IOException e) {
             throw new RuntimeException(e);
           }
