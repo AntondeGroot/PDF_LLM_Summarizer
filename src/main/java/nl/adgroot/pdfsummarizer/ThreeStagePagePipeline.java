@@ -4,8 +4,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -17,7 +15,6 @@ import nl.adgroot.pdfsummarizer.llm.ServerPermitPool;
 import nl.adgroot.pdfsummarizer.notes.CardsParser;
 import nl.adgroot.pdfsummarizer.notes.DefaultCardsParser;
 import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
-import nl.adgroot.pdfsummarizer.notes.records.Card;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfObject;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplates;
 
@@ -85,7 +82,6 @@ public class ThreeStagePagePipeline implements BatchPipeline {
           return llm.generateAsync(step1Prompt)
               .thenComposeAsync(step1Result -> {
                 String concepts = step1Result.response();
-                tracker.finishPage(step1Result.metrics());
                 logStep(1, chapterTitle, batch.size());
                 appendDebugFile(outDir, "step1_concepts", chapterTitle, concepts);
 
@@ -101,7 +97,6 @@ public class ThreeStagePagePipeline implements BatchPipeline {
 
               .thenComposeAsync(step2Result -> {
                 String rawCards = step2Result.response();
-                tracker.finishPage(step2Result.metrics());
                 logStep(2, chapterTitle, batch.size());
                 appendDebugFile(outDir, "step2_cards", chapterTitle, rawCards);
 
@@ -117,35 +112,21 @@ public class ThreeStagePagePipeline implements BatchPipeline {
               .thenApplyAsync(step3Result -> {
                 try {
                   String refined = step3Result.response();
-                  tracker.finishPage(step3Result.metrics());
+                  tracker.finishBatch(batch.size(), step3Result.metrics());
                   logStep(3, chapterTitle, batch.size());
 
-                  Map<Integer, String> pageMd = PagePipeline.splitPageBlocks(refined);
-                  Map<Integer, List<String>> result = new HashMap<>();
-
-                  for (int i = 0; i < batch.size(); i++) {
-                    PdfObject p = batch.get(i);
-                    String perPage = pageMd.getOrDefault(i + 1, "");
-
-                    List<Card> cards = cardsParser.parse(perPage);
-                    List<String> cardStrings = new ArrayList<>(cards.size());
-                    for (Card c : cards) cardStrings.add(c.toString());
-
-                    result.put(p.getIndex(), cardStrings);
-                  }
-
-                  return result;
+                  return PagePipeline.parseCards(refined, batch, cardsParser);
                 } finally {
                   permits.release(serverIndex);
                 }
               }, cpuPoolExecutor)
 
               .whenComplete((res, ex) -> {
-                int leftInflight = IN_FLIGHT.decrementAndGet();
-                long seconds = (System.nanoTime() - startNs) / 1_000_000_000;
-                log.info("END   3-STAGE BATCH pages=%d chapter='%s' took=%ds inflight=%d server=%d %s%n",
-                    batch.size(), chapterTitle, seconds, leftInflight, serverIndex,
+                long millis = (System.nanoTime() - startNs) / 1_000_000;
+                log.info("END   3-STAGE BATCH pages=%d chapter='%s' took=%dms inflight=%d server=%d %s%n",
+                    batch.size(), chapterTitle, millis, IN_FLIGHT.decrementAndGet(), serverIndex,
                     (ex != null ? "ERROR=" + ex : ""));
+                if (ex == null) log.info(tracker.formatStatus(millis));
               });
         });
   }
