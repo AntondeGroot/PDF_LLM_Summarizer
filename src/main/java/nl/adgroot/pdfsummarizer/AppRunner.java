@@ -46,7 +46,7 @@ public class AppRunner {
       Path outDir
   ) throws Exception {
     List<PdfObject> pages = prepared.pdfPages();
-    int totalPages = prepared.parsed().getContent().size();
+    int totalPages = prepared.pdfPages().size();
     ProgressTracker tracker = new ProgressTracker(totalPages);
 
     ExecutorService permitPoolExecutor = exec.permitPoolExecutor();
@@ -55,7 +55,7 @@ public class AppRunner {
 
     List<CompletableFuture<Void>> chapterWrites = new ArrayList<>();
 
-    for (Chapter chapter : prepared.parsed().getTableOfContent()) {
+    for (Chapter chapter : prepared.tableOfContent()) {
       chapterWrites.add(chapterProcessor.processChapterAsync(
           chapter, pages, topic, pipeline,
           llms, permitPool,

@@ -4,11 +4,10 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-
 import nl.adgroot.pdfsummarizer.config.AppConfig;
 import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxPdfSplitter;
 import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxTextExtractor;
-import nl.adgroot.pdfsummarizer.text.Page;
+import nl.adgroot.pdfsummarizer.text.Chapter;
 import org.apache.pdfbox.pdmodel.PDDocument;
 
 public class PdfPreparationService {
@@ -26,44 +25,50 @@ public class PdfPreparationService {
     List<String> pagesWithTOC = extractor.extractPages(pdfPath);
     List<PDDocument> pdfPagesAll = pdfSplitter.splitInMemory(pdfPath);
 
-    ParsedPDF parsedPdf = new ParsedPDF(pagesWithTOC, cfg.cards.nrOfLinesUsedForContext);
+    ParsedPDF parsedPdf = new ParsedPDF(pagesWithTOC);
+    List<Chapter> tableOfContent = parsedPdf.getTableOfContent();
+    List<String> strippedPages = parsedPdf.getStrippedPages();
+    int contentStartIndex = parsedPdf.getContentStartIndex();
+    int offset = -tableOfContent.getFirst().start;
 
-    // Build PdfObjects using the exact original-PDF index stored on each Page.
-    // This handles leading pages, trailing pages, and inter-chapter gaps correctly.
-    List<Page> fullContent = parsedPdf.getContent();
-    int total = fullContent.size();
+    int chapterIdx = 0;
+    Chapter currentChapter = tableOfContent.getFirst();
+    List<PdfObject> allObjects = new ArrayList<>();
 
-    List<PdfObject> allObjects = new ArrayList<>(total);
-    for (int i = 0; i < total; i++) {
-      Page p = fullContent.get(i);
-      int origIdx = p.getOriginalPageIndex();
+    for (int i = 0; i < strippedPages.size(); i++) {
+      int pdfPageNr = i + 1;
 
-      if (origIdx < 0 || origIdx >= pdfPagesAll.size()) {
-        // Safety: original index was not set or is out of range — clamp here
-        parsedPdf.setContent(new ArrayList<>(fullContent.subList(0, i)));
-        total = i;
-        break;
+      while (chapterIdx + 1 < tableOfContent.size()) {
+        int nextPdfStart = tableOfContent.get(chapterIdx + 1).start + offset;
+        if (pdfPageNr >= nextPdfStart) {
+          chapterIdx++;
+          currentChapter = tableOfContent.get(chapterIdx);
+        } else {
+          break;
+        }
       }
 
-      PDDocument doc = pdfPagesAll.get(origIdx);
-      int originalPageNr = origIdx + 1; // 1-based page number in the original PDF
-      allObjects.add(new PdfObject(i, originalPageNr, p.chapter, doc, p.toString()));
+      int currentPdfStart = currentChapter.start + offset;
+      int currentPdfEnd   = currentChapter.end + offset;
+
+      if (pdfPageNr >= currentPdfStart && pdfPageNr <= currentPdfEnd) {
+        int origIdx = contentStartIndex + i;
+        if (origIdx < 0 || origIdx >= pdfPagesAll.size()) {
+          break;
+        }
+        PDDocument doc = pdfPagesAll.get(origIdx);
+        int originalPageNr = origIdx + 1;
+        allObjects.add(new PdfObject(allObjects.size(), originalPageNr, currentChapter.header, doc, strippedPages.get(i)));
+      }
     }
 
-    // Apply preview selection ONCE (indexes are content-indexes into the "allObjects" list)
+    int total = allObjects.size();
     List<Integer> selectedIndexes = selector.selectIndexes(cfg, total);
 
     if (cfg != null && cfg.preview != null && cfg.preview.enabled) {
-      // select PdfObjects
-      List<PdfObject> selectedObjects = selector.selectByIndex(allObjects, selectedIndexes);
-
-      // trim parsed content to match the same selection
-      parsedPdf.setContent(selector.selectByIndex(parsedPdf.getContent(), selectedIndexes));
-
-      return new PreparedPdf(parsedPdf, selectedObjects);
+      return new PreparedPdf(tableOfContent, selector.selectByIndex(allObjects, selectedIndexes));
     }
 
-    return new PreparedPdf(parsedPdf, allObjects);
+    return new PreparedPdf(tableOfContent, allObjects);
   }
-
 }

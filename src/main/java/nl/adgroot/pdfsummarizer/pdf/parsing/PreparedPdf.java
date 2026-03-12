@@ -1,13 +1,9 @@
 package nl.adgroot.pdfsummarizer.pdf.parsing;
 
 import java.util.List;
+import nl.adgroot.pdfsummarizer.text.Chapter;
 
-/**
- * Result of loading + preparing a PDF for processing.
- * - parsed: parsed text content + TOC
- * - pdfPages: PDDocument pages aligned with parsed.getContent()
- */
 public record PreparedPdf(
-    ParsedPDF parsed,
+    List<Chapter> tableOfContent,
     List<PdfObject> pdfPages
 ) {}

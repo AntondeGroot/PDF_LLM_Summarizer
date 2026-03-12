@@ -6,15 +6,13 @@ import java.util.ArrayList;
 import java.util.List;
 import nl.adgroot.pdfsummarizer.pdf.tableOfContents.TableOfContentsUtil;
 import nl.adgroot.pdfsummarizer.text.Chapter;
-import nl.adgroot.pdfsummarizer.text.Page;
 
 public class ParsedPDF {
-  private List<Chapter> tableOfContent;
-  private List<Page> content;
-  private int offset;
+  private final List<Chapter> tableOfContent;
+  private final List<String> strippedPages;
+  private final int contentStartIndex;
 
-  public ParsedPDF(List<String> pages, int nrOfLinesUsedForContext){
-    // determine Table Of Content Pages
+  public ParsedPDF(List<String> pages) {
     int TOC_begin = TableOfContentsUtil.getTableOfContentsFirstPage(pages);
     int TOC_end = TableOfContentsUtil.getTableOfContentsLastPage(pages, TOC_begin);
 
@@ -24,76 +22,14 @@ public class ParsedPDF {
     }
     tableOfContent = convertTableOfContentsToChapterList(TOC.toString(), pages.size());
 
-    // Track total page count before stripping, so we can compute originalPageIndex later.
-    // contentStartIndex = number of leading pages stripped (TOC + preface).
-    // After both subList calls: pages.size() == originalCount - strippedLeadingPages
-    // => contentStartIndex = originalCount - pages.size() (after stripping)
     int originalPageCount = pages.size();
-
-    // determine content without TOC
-    pages = pages.subList(TOC_end+1, pages.size());// pages might still contain an About section between TOC and the First Chapter.
-    pages = TableOfContentsUtil.getStringPagesWithoutTOC(pages, tableOfContent);
-
-    // 0-based index of pages[0] in the original pagesWithTOC list
-    int contentStartIndex = originalPageCount - pages.size();
-    List<Page> pages3 = new ArrayList<>();
-    offset = -tableOfContent.getFirst().start;
-
-    int chapterIdx = 0;
-    Chapter currentChapter = tableOfContent.getFirst();
-    for (int i = 0; i < pages.size(); i++) {
-      int pdfPageNr = i + 1;
-
-      // Move to next chapter if this PDF page is at/after the next chapter's PDF start
-      while (chapterIdx + 1 < tableOfContent.size()) {
-        int nextPdfStart = tableOfContent.get(chapterIdx + 1).start + offset;
-        if (pdfPageNr >= nextPdfStart) {
-          chapterIdx++;
-          currentChapter = tableOfContent.get(chapterIdx);
-        } else {
-          break;
-        }
-      }
-
-      Page page = new Page(pages.get(i));
-      page.setPageNr(i);
-
-      int currentPdfStart = currentChapter.start + offset;
-      int currentPdfEnd   = currentChapter.end + offset;
-
-      // Only attach chapter if we're within the mapped range
-      if (pdfPageNr >= currentPdfStart && pdfPageNr <= currentPdfEnd) {
-        page.chapter = currentChapter.header;
-        page.setOriginalPageIndex(contentStartIndex + i);
-        pages3.add(page);
-      }
-    }
-    content = pages3;
-
-    if(nrOfLinesUsedForContext>0){
-      setContext(nrOfLinesUsedForContext);
-    }
+    List<String> content = pages.subList(TOC_end + 1, pages.size());
+    content = TableOfContentsUtil.getStringPagesWithoutTOC(content, tableOfContent);
+    contentStartIndex = originalPageCount - content.size();
+    strippedPages = new ArrayList<>(content);
   }
 
-  public List<Chapter> getTableOfContent(){return tableOfContent;}
-
-  public List<Page> getContent(){return content;}
-
-  public void setContent(List<Page> content){
-    this.content = content;
-  }
-
-  public void setContext(int nrLinesOfContext){
-    for (Chapter chapter: tableOfContent){
-      for (int i = chapter.start+offset; i < chapter.end+offset-1 && i < content.size(); i++) {
-        Page page = content.get(i);
-        if (i>chapter.start+offset){
-          page.setContextBefore(content.get(i-1).getLastLines(nrLinesOfContext));
-        }
-        if((i<chapter.end+offset) && (i<content.size()-1)){
-          page.setContextAfter(content.get(i+1).getFirstLines(nrLinesOfContext));
-        }
-      }
-    }
-  }
+  public List<Chapter> getTableOfContent() { return tableOfContent; }
+  public List<String> getStrippedPages() { return strippedPages; }
+  public int getContentStartIndex() { return contentStartIndex; }
 }
