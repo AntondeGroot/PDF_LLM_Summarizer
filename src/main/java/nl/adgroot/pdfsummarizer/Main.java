@@ -33,7 +33,7 @@ public class Main {
         new PdfBoxTextExtractor(), new PdfBoxPdfSplitter()
     ).loadAndPrepare(appArgs.pdfPath(), cfg);
 
-    String topic = filenameToTopic(appArgs.pdfPath().getFileName().toString());
+    String topic = PdfPreparationService.filenameToTopic(appArgs.pdfPath().getFileName().toString());
 
     try (AppExecutors exec = AppExecutors.create(cfg)) {
       new AppRunner(
@@ -49,11 +49,6 @@ public class Main {
     }
 
     log.info("Done. All chapters written.");
-  }
-
-  static String filenameToTopic(String filename) {
-    String noExt = filename.replaceAll("(?i)\\.pdf$", "");
-    return noExt.replace('_', ' ').replace('-', ' ').trim();
   }
 
   static AppArgs validateInputParameters(String[] args) {

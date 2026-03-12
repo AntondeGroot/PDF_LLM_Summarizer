@@ -21,6 +21,11 @@ public class PdfPreparationService {
     this.pdfSplitter = pdfSplitter;
   }
 
+  public static String filenameToTopic(String filename) {
+    String noExt = filename.replaceAll("(?i)\\.pdf$", "");
+    return noExt.replace('_', ' ').replace('-', ' ').trim();
+  }
+
   public PreparedPdf loadAndPrepare(Path pdfPath, AppConfig cfg) throws IOException {
     List<String> pagesWithTOC = extractor.extractPages(pdfPath);
     List<PDDocument> pdfPagesAll = pdfSplitter.splitInMemory(pdfPath);
