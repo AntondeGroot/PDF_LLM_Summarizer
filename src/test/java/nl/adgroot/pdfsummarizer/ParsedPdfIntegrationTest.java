@@ -32,7 +32,7 @@ class ParsedPdfIntegrationTest {
     List<String> pages = extractor.extractPages(pdfPath);
 
     // WHEN
-    ParsedPDF parsed = new ParsedPDF(pages, 0);
+    ParsedPDF parsed = new ParsedPDF(pages);
 
     // THEN
     assertFalse(parsed.getTableOfContent().isEmpty(), "Expected a Table Of Content");
@@ -46,7 +46,7 @@ class ParsedPdfIntegrationTest {
     List<String> pages = extractor.extractPages(pdfPath);
 
     // WHEN
-    ParsedPDF parsed = new ParsedPDF(pages, 0);
+    ParsedPDF parsed = new ParsedPDF(pages);
 
     // THEN
     assertFalse(parsed.getTableOfContent().isEmpty(), "Expected a Table Of Content");
@@ -60,7 +60,7 @@ class ParsedPdfIntegrationTest {
     List<String> pages = extractor.extractPages(pdfPath);
 
     // WHEN
-    ParsedPDF parsed = new ParsedPDF(pages, 0);
+    ParsedPDF parsed = new ParsedPDF(pages);
 
     // THEN
     assertFalse(parsed.getTableOfContent().isEmpty(), "Expected a Table Of Content");
@@ -76,11 +76,11 @@ class ParsedPdfIntegrationTest {
     List<String> pages = extractor.extractPages(pdfPath);
 
     // WHEN
-    ParsedPDF parsed = new ParsedPDF(pages, 0);
+    ParsedPDF parsed = new ParsedPDF(pages);
 
     // THEN
-    assertFalse(parsed.getContent().isEmpty(), "Expected content pages");
-    assertTrue(parsed.getContent().getFirst().content.contains("Chapter 1: Getting started"),
+    assertFalse(parsed.getStrippedPages().isEmpty(), "Expected content pages");
+    assertTrue(parsed.getStrippedPages().getFirst().contains("Chapter 1: Getting started"),
         "Expected the first page to start on the first chapter");
   }
 
@@ -90,12 +90,12 @@ class ParsedPdfIntegrationTest {
     List<String> pages = extractor.extractPages(pdfPath);
 
     // WHEN
-    ParsedPDF parsed = new ParsedPDF(pages, 0);
+    ParsedPDF parsed = new ParsedPDF(pages);
 
-    // THEN
-    assertFalse(parsed.getContent().isEmpty(), "Expected content pages");
-    assertTrue(parsed.getContent().getLast().content.contains("11.2 Runtime issues"),//todo: add a unique string to last page
-        "Expected the last page to end on the last chapter: 11.2 but it was: "+parsed.getContent().getLast().content);
+    // THEN — stripped pages include the last chapter's content (post-chapter pages like Index may also be present)
+    assertFalse(parsed.getStrippedPages().isEmpty(), "Expected content pages");
+    assertTrue(parsed.getStrippedPages().stream().anyMatch(p -> p.contains("11.2 Runtime issues")),
+        "Expected at least one stripped page to contain '11.2 Runtime issues'");
   }
 
   private static Path getPdfPath() throws URISyntaxException {

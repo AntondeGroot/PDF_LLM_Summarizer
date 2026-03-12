@@ -54,7 +54,7 @@ class TableOfContentsConverterTest {
 
     // WHEN
     List<String> pagesWithTOC = extractor.extractPages(pdfPath);
-    ParsedPDF parsedPDF = new ParsedPDF(pagesWithTOC, 0);
+    ParsedPDF parsedPDF = new ParsedPDF(pagesWithTOC);
 
     // THEN
     List<Chapter> toc = parsedPDF.getTableOfContent();
@@ -68,7 +68,7 @@ class TableOfContentsConverterTest {
 
     // WHEN
     List<String> pagesWithTOC = extractor.extractPages(pdfPath);
-    ParsedPDF parsedPDF = new ParsedPDF(pagesWithTOC, 0);
+    ParsedPDF parsedPDF = new ParsedPDF(pagesWithTOC);
 
     // THEN
     List<Chapter> toc = parsedPDF.getTableOfContent();
@@ -109,7 +109,7 @@ class TableOfContentsConverterTest {
 
     // WHEN
     List<String> pagesWithTOC = extractor.extractPages(pdfPath);
-    ParsedPDF parsedPDF = new ParsedPDF(pagesWithTOC, 0);
+    ParsedPDF parsedPDF = new ParsedPDF(pagesWithTOC);
 
     // THEN number of chapters is correct with correct titles
     List<Chapter> toc = parsedPDF.getTableOfContent();

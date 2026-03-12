@@ -44,7 +44,6 @@ class PdfPreparationServiceIntegrationTest {
     List<PdfObject> selected = prepared.pdfPages();
 
     assertEquals(5, selected.size(), "Expected 5 selected PdfObjects");
-    assertEquals(5, prepared.parsed().getContent().size(), "Expected parsed content trimmed to 5 pages");
 
     // Strongest assertion: the PdfObject text should match the first content markers.
     assertTrue(selected.getFirst().getTextReadFromPdf().contains("CONTENT-0"),
@@ -76,7 +75,6 @@ class PdfPreparationServiceIntegrationTest {
     List<PdfObject> selected = prepared.pdfPages();
 
     assertEquals(5, selected.size(), "Expected 5 selected PdfObjects");
-    assertEquals(5, prepared.parsed().getContent().size(), "Expected parsed content trimmed to 5 pages");
 
     // Alignment check: for each selected PdfObject, the extracted PDF text should include
     // the marker that is also in PdfObject.text (same page).
@@ -85,7 +83,7 @@ class PdfPreparationServiceIntegrationTest {
       String pdfText = extractSinglePageText(obj.getDocument());
 
       // Find the first CONTENT-k marker in objText and assert it is also in the PDF page.
-      // This makes the test robust even if Page#toString includes extra metadata.
+      // This makes the test robust even if PdfObject text includes extra metadata.
       String marker = firstContentMarker(objText);
       assertTrue(marker != null && !marker.isBlank(), "Expected a CONTENT-k marker in PdfObject text");
       assertTrue(pdfText.contains(marker),

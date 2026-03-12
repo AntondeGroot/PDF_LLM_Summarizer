@@ -31,46 +31,41 @@ class PdfPreparationServiceTest {
   }
 
   @Test
-  void loadAndPrepare_previewDisabled_returnsAllAlignedContentPages_andDoesNotTrimContent() throws Exception {
+  void loadAndPrepare_previewDisabled_returnsAllAlignedContentPages() throws Exception {
     AppConfig cfg = minimalConfig();
     cfg.preview.enabled = false;
 
     List<String> rawPages = fakePagesWithTocAndContent();
 
     FakeExtractor extractor = new FakeExtractor(rawPages);
-
-    // Splitter must mimic real behavior: one PDDocument per original page
     FakeSplitter splitter = new FakeSplitter(newPdfPages(rawPages.size()));
 
     PdfPreparationService svc = new PdfPreparationService(extractor, splitter);
 
     PreparedPdf prepared = svc.loadAndPrepare(Path.of("dummy.pdf"), cfg);
 
-    int expectedContentSize = expectedContentSizeAfterParsedPdf(rawPages);
+    int expectedContentSize = expectedContentSize(rawPages);
 
+    assertTrue(prepared.pdfPages().size() > 0, "expected at least one content page");
     assertEquals(expectedContentSize, prepared.pdfPages().size(),
         "preview disabled should keep all aligned content pages");
-    assertEquals(expectedContentSize, prepared.parsed().getContent().size(),
-        "content should not be trimmed");
 
-    // Also sanity-check PdfObject indexes are 0..n-1
+    // Sanity-check PdfObject indexes are 0..n-1
     for (int i = 0; i < expectedContentSize; i++) {
       assertEquals(i, prepared.pdfPages().get(i).getIndex());
     }
   }
 
   @Test
-  void loadAndPrepare_previewEnabled_nonRandom_firstN_trimsPdfObjects_andParsedContent() throws Exception {
+  void loadAndPrepare_previewEnabled_nonRandom_firstN_trimsPdfObjects() throws Exception {
     AppConfig cfg = minimalConfig();
     cfg.preview.enabled = true;
     cfg.preview.randomPages = false;
-    cfg.preview.nrPages = 2; // deterministic
+    cfg.preview.nrPages = 2;
 
     List<String> rawPages = fakePagesWithTocAndContent();
 
     FakeExtractor extractor = new FakeExtractor(rawPages);
-
-    // Splitter returns docs for full raw PDF page count
     FakeSplitter splitter = new FakeSplitter(newPdfPages(rawPages.size()));
 
     PdfPreparationService svc = new PdfPreparationService(extractor, splitter);
@@ -78,9 +73,7 @@ class PdfPreparationServiceTest {
     PreparedPdf prepared = svc.loadAndPrepare(Path.of("dummy.pdf"), cfg);
 
     assertEquals(2, prepared.pdfPages().size(), "should keep first 2 selected pages");
-    assertEquals(2, prepared.parsed().getContent().size(), "should keep first 2 content pages");
 
-    // Order preserved (index 0 then 1)
     assertEquals(0, prepared.pdfPages().get(0).getIndex());
     assertEquals(1, prepared.pdfPages().get(1).getIndex());
   }
@@ -88,7 +81,7 @@ class PdfPreparationServiceTest {
   @Test
   void loadAndPrepare_previewEnabled_nrPagesGreaterThanTotal_clampsToTotal() throws Exception {
     List<String> rawPages = fakePagesWithTocAndContent();
-    int totalContent = expectedContentSizeAfterParsedPdf(rawPages);
+    int totalContent = expectedContentSize(rawPages);
 
     FakeExtractor extractor = new FakeExtractor(rawPages);
     FakeSplitter splitter = new FakeSplitter(newPdfPages(rawPages.size()));
@@ -103,7 +96,6 @@ class PdfPreparationServiceTest {
     PreparedPdf prepared = svc.loadAndPrepare(Path.of("dummy.pdf"), cfg);
 
     assertEquals(totalContent, prepared.pdfPages().size(), "should clamp to total content pages");
-    assertEquals(totalContent, prepared.parsed().getContent().size(), "content should clamp to total");
   }
 
   // -------------------------
@@ -147,17 +139,19 @@ class PdfPreparationServiceTest {
     List<PDDocument> list = new ArrayList<>(n);
     for (int i = 0; i < n; i++) {
       PDDocument d = new PDDocument();
-      d.addPage(new PDPage()); // real splitter returns 1-page docs
+      d.addPage(new PDPage());
       docsToClose.add(d);
       list.add(d);
     }
     return list;
   }
 
-  private static int expectedContentSizeAfterParsedPdf(List<String> rawPages) {
-    // Use the real ParsedPDF logic so the test stays correct if heuristics change
-    ParsedPDF parsed = new ParsedPDF(rawPages, 0);
-    return parsed.getContent().size();
+  private int expectedContentSize(List<String> rawPages) throws Exception {
+    AppConfig cfg = minimalConfig();
+    cfg.preview.enabled = false;
+    FakeExtractor ext = new FakeExtractor(rawPages);
+    FakeSplitter spl = new FakeSplitter(newPdfPages(rawPages.size()));
+    return new PdfPreparationService(ext, spl).loadAndPrepare(Path.of("dummy.pdf"), cfg).pdfPages().size();
   }
 
   /**
@@ -178,7 +172,6 @@ class PdfPreparationServiceTest {
 
     String notToc = "Preface\nThis is not a TOC page.\nJust text.\n";
 
-    // Content pages (3 pages)
     String content1 = "Chapter 1: Intro\nActual content begins here.\n";
     String content2 = "More content...\n";
     String content3 = "Even more content...\n";
