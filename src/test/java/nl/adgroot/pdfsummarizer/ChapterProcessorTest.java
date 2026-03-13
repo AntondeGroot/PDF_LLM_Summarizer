@@ -198,6 +198,129 @@ class ChapterProcessorTest {
   }
 
   // ----------------------------
+  // Batching tests
+  // ----------------------------
+
+  // Token estimate used by ChapterProcessor: ceil(length / 4)
+  private static String textOfTokens(int tokens) {
+    return "x".repeat(tokens * 4);
+  }
+
+  private AppConfig batchingCfg(boolean localBatching, int maxTokensPerChunk) {
+    AppConfig cfg = new AppConfig();
+    cfg.ollama.localBatching = localBatching;
+    cfg.chunking.maxTokensPerChunk = maxTokensPerChunk;
+    cfg.cards.maxCardsPerChunk = 10;
+    return cfg;
+  }
+
+  private List<PdfObject> pagesInChapter(String chapter, int count, int tokensEach) {
+    List<PdfObject> pages = new ArrayList<>();
+    String text = textOfTokens(tokensEach);
+    for (int i = 0; i < count; i++) {
+      PDDocument d = new PDDocument();
+      d.addPage(new PDPage());
+      docsToClose.add(d);
+      pages.add(new PdfObject(i, chapter, d, text));
+    }
+    return pages;
+  }
+
+  private List<List<Integer>> runAndCaptureBatches(
+      List<PdfObject> pages, String chapter, AppConfig cfg) throws Exception {
+
+    CapturingPipeline capturing = new CapturingPipeline();
+    PromptTemplates prompts = new PromptTemplates(new PromptTemplate(""), null, null, null);
+    ServerPermitPool permits = new ServerPermitPool(1, 1, true);
+
+    new ChapterProcessor().processChapterAsync(
+        new Chapter(chapter, 1, 0), pages, "Topic", capturing,
+        List.of(), permits, permitExec, cpuExec, writerExec,
+        prompts, cfg, new ProgressTracker(pages.size()),
+        new NoopNotesWriter(), Files.createTempDirectory("batching-test-")
+    ).get(2, TimeUnit.SECONDS);
+
+    return capturing.batches;
+  }
+
+  @Test
+  void batching_localBatchingDisabled_eachPageIsItsOwnBatch() throws Exception {
+    String chapter = "Ch";
+    List<PdfObject> pages = pagesInChapter(chapter, 3, 100);
+    AppConfig cfg = batchingCfg(false, 99999);
+
+    List<List<Integer>> batches = runAndCaptureBatches(pages, chapter, cfg);
+
+    assertEquals(3, batches.size(), "Expected one batch per page");
+    batches.forEach(b -> assertEquals(1, b.size()));
+  }
+
+  @Test
+  void batching_allPagesFitInOneChunk_producesOneBatch() throws Exception {
+    String chapter = "Ch";
+    // 3 pages × 25 tokens = 75 total, well within max=200
+    List<PdfObject> pages = pagesInChapter(chapter, 3, 25);
+    AppConfig cfg = batchingCfg(true, 200);
+
+    List<List<Integer>> batches = runAndCaptureBatches(pages, chapter, cfg);
+
+    assertEquals(1, batches.size(), "All pages should fit in one batch");
+    assertEquals(3, batches.getFirst().size());
+  }
+
+  @Test
+  void batching_pagesOverflowChunk_splitCorrectly() throws Exception {
+    String chapter = "Ch";
+    // 3 pages × 100 tokens, max=250: pages 0+1 fit (200 ≤ 250), page 2 overflows → [0,1] + [2]
+    List<PdfObject> pages = pagesInChapter(chapter, 3, 100);
+    AppConfig cfg = batchingCfg(true, 250);
+
+    List<List<Integer>> batches = runAndCaptureBatches(pages, chapter, cfg);
+
+    assertEquals(2, batches.size());
+    assertEquals(2, batches.get(0).size(), "First batch should contain 2 pages");
+    assertEquals(1, batches.get(1).size(), "Second batch should contain 1 page");
+  }
+
+  @Test
+  void batching_singlePageExceedsMaxTokens_isStillIncludedAlone() throws Exception {
+    String chapter = "Ch";
+    // 1 page of 200 tokens, max=50 — must not be dropped
+    List<PdfObject> pages = pagesInChapter(chapter, 1, 200);
+    AppConfig cfg = batchingCfg(true, 50);
+
+    List<List<Integer>> batches = runAndCaptureBatches(pages, chapter, cfg);
+
+    assertEquals(1, batches.size(), "Oversized page must still form a batch");
+    assertEquals(1, batches.getFirst().size());
+  }
+
+  @Test
+  void batching_emptyChapter_producesNoBatches() throws Exception {
+    String chapter = "Ch";
+    List<PdfObject> allPages = pagesInChapter("Other chapter", 3, 50);
+    AppConfig cfg = batchingCfg(true, 200);
+
+    List<List<Integer>> batches = runAndCaptureBatches(allPages, chapter, cfg);
+
+    assertTrue(batches.isEmpty(), "Chapter with no matching pages should produce no batches");
+  }
+
+  @Test
+  void batching_pagesPreserveOrderAcrossBatches() throws Exception {
+    String chapter = "Ch";
+    // 4 pages of 100 tokens, max=250: [0,1] + [2,3]
+    List<PdfObject> pages = pagesInChapter(chapter, 4, 100);
+    AppConfig cfg = batchingCfg(true, 250);
+
+    List<List<Integer>> batches = runAndCaptureBatches(pages, chapter, cfg);
+
+    assertEquals(2, batches.size());
+    assertEquals(List.of(0, 1), batches.get(0), "First batch should contain pages 0 and 1 in order");
+    assertEquals(List.of(2, 3), batches.get(1), "Second batch should contain pages 2 and 3 in order");
+  }
+
+  // ----------------------------
   // Stubs
   // ----------------------------
 
@@ -223,6 +346,24 @@ class ChapterProcessorTest {
       for (var p : batch) {
         out.put(p.getIndex(), List.of("Card for index=" + p.getIndex()));
       }
+      return CompletableFuture.completedFuture(out);
+    }
+  }
+
+  /** Records the index list of each batch received, for batching assertions. */
+  static class CapturingPipeline implements BatchPipeline {
+    final List<List<Integer>> batches = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    @Override
+    public CompletableFuture<Map<Integer, List<String>>> processBatchAsync(
+        List<LlmClient> llms, ServerPermitPool permits,
+        ExecutorService permitPoolExecutor, ExecutorService cpuPoolExecutor,
+        PromptTemplates prompts, AppConfig cfg, String topic, String chapterTitle,
+        List<PdfObject> batch, ProgressTracker tracker, Path outDir
+    ) {
+      batches.add(batch.stream().map(PdfObject::getIndex).toList());
+      Map<Integer, List<String>> out = new java.util.HashMap<>();
+      for (var p : batch) out.put(p.getIndex(), List.of("Card for index=" + p.getIndex()));
       return CompletableFuture.completedFuture(out);
     }
   }
