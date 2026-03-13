@@ -8,7 +8,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 
 import nl.adgroot.pdfsummarizer.AppLogger;
-import nl.adgroot.pdfsummarizer.config.AppConfig;
 import nl.adgroot.pdfsummarizer.notes.NotesWriter;
 import nl.adgroot.pdfsummarizer.notes.records.CardsPage;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfObject;
@@ -26,82 +25,81 @@ public class ChapterProcessor {
       ExecutorService writerPool,
       NotesWriter writer
   ) {
-
     final String chapterHeader = chapter.header;
     log.info("Scheduling chapter: " + chapterHeader);
 
-    // Pages for this chapter, stable order
     List<PdfObject> pagesInChapter = pages.stream()
         .filter(p -> chapterHeader.equals(p.getChapter()))
         .toList();
 
-    // Batch by tokens
-    int maxTokensPerChunk = resolveMaxTokensPerChunk(ctx.cfg());
-
-    // Compute base prompt tokens by rendering the primary template with empty content.
-    int basePromptTokens = estimateBasePromptTokens(ctx, chapterHeader);
-
-    List<List<PdfObject>> batches = ctx.cfg().ollama.localBatching
-        ? splitIntoBatchesByEstimatedTokens(chapterHeader, pagesInChapter, maxTokensPerChunk,
-        basePromptTokens)
-        : pagesInChapter.stream().map(List::of).toList();
+    List<List<PdfObject>> batches = buildBatches(ctx, chapterHeader, pagesInChapter);
 
     List<CompletableFuture<Void>> batchFutures = new ArrayList<>(batches.size());
-
     for (List<PdfObject> batch : batches) {
       CompletableFuture<Void> bf = pipeline.processBatchAsync(ctx, chapterHeader, batch)
-          .thenAcceptAsync(cardsBySelectedIndex -> {
-
-            for (PdfObject p : batch) {
-              List<String> cards = cardsBySelectedIndex.getOrDefault(p.getIndex(), List.of());
-              p.setCards(cards);
-
-              CardsPage perPage = new CardsPage(ctx.topic(), chapterHeader);
-              for (String card : cards) {
-                perPage.addCard(card);
-              }
-              p.setNotes(perPage.hasContent() ? perPage.toString() : "");
-            }
-
-          }, writerPool)
+          .thenAcceptAsync(cards -> applyBatchResults(cards, batch, chapterHeader, ctx.topic()),
+              writerPool)
           .whenComplete((res, ex) -> {
-            if (ex != null) {
-              log.error("Batch task failed in chapter '" + chapterHeader + "': " + ex);
-            }
+            if (ex != null) log.error("Batch failed in chapter '" + chapterHeader + "': " + ex);
           });
-
       batchFutures.add(bf);
     }
 
-    // After all batches done: write chapter file (single write on writerPool)
     return CompletableFuture.allOf(batchFutures.toArray(new CompletableFuture[0]))
-        .thenAcceptAsync(v -> {
+        .thenAcceptAsync(v -> writeChapterFile(pagesInChapter, chapterHeader, ctx, writer),
+            writerPool);
+  }
 
-          CardsPage chapterCards = new CardsPage(ctx.topic(), chapterHeader);
+  private static void applyBatchResults(
+      Map<Integer, List<String>> cardsByIndex,
+      List<PdfObject> batch,
+      String chapterHeader,
+      String topic
+  ) {
+    for (PdfObject p : batch) {
+      List<String> cards = cardsByIndex.getOrDefault(p.getIndex(), List.of());
+      p.setCards(cards);
 
-          // Add cards in chapter order from each PdfObject
-          for (PdfObject p : pagesInChapter) {
-            for (String card : p.getCards()) {
-              chapterCards.addCard(card);
-            }
-          }
+      CardsPage perPage = new CardsPage(topic, chapterHeader);
+      cards.forEach(perPage::addCard);
+      p.setNotes(perPage.hasContent() ? perPage.toString() : "");
+    }
+  }
 
-          // Write chapter output file
-          try {
-            if (chapterCards.hasContent()) {
-              writer.writeCard(ctx.outDir(), chapterCards);
-              log.info("WROTE chapter: " + chapterHeader + " -> " + ctx.outDir().toAbsolutePath());
-            } else if (!pagesInChapter.isEmpty()) {
-              // a chapter was planned but the prompt resulted in no notes
-              log.info("No notes were taken for " + chapterHeader);
-            }
-            // a chapter was not planned: for example during a preview run
-            // that means that "no notes taken" is perfectly okay!
-          } catch (IOException e) {
-            throw new RuntimeException(e);
-          }
+  private static void writeChapterFile(
+      List<PdfObject> pagesInChapter,
+      String chapterHeader,
+      BatchContext ctx,
+      NotesWriter writer
+  ) {
+    CardsPage chapterCards = new CardsPage(ctx.topic(), chapterHeader);
+    for (PdfObject p : pagesInChapter) {
+      p.getCards().forEach(chapterCards::addCard);
+    }
 
-        }, writerPool);
+    try {
+      if (chapterCards.hasContent()) {
+        writer.writeCard(ctx.outDir(), chapterCards);
+        log.info("WROTE chapter: " + chapterHeader + " -> " + ctx.outDir().toAbsolutePath());
+      } else if (!pagesInChapter.isEmpty()) {
+        log.info("No notes were taken for " + chapterHeader);
+      }
+      // empty pagesInChapter = preview run with no LLM calls — silence is correct
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private static List<List<PdfObject>> buildBatches(
+      BatchContext ctx, String chapterHeader, List<PdfObject> pagesInChapter
+  ) {
+    if (!ctx.cfg().ollama.localBatching) {
+      return pagesInChapter.stream().map(List::of).toList();
+    }
+    int maxTokens = Math.max(1, ctx.cfg().chunking.maxTokensPerChunk);
+    int basePromptTokens = estimateBasePromptTokens(ctx, chapterHeader);
+    return splitIntoBatchesByEstimatedTokens(chapterHeader, pagesInChapter, maxTokens,
+        basePromptTokens);
   }
 
   /**
@@ -210,8 +208,4 @@ public class ChapterProcessor {
     return estimateTokens(base);
   }
 
-  private static int resolveMaxTokensPerChunk(AppConfig cfg) {
-    int maxTokens = cfg.chunking.maxTokensPerChunk;
-    return Math.max(1, maxTokens);
-  }
 }
