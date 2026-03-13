@@ -1,7 +1,6 @@
 package nl.adgroot.pdfsummarizer.pipeline;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -10,14 +9,10 @@ import java.util.concurrent.ExecutorService;
 
 import nl.adgroot.pdfsummarizer.AppLogger;
 import nl.adgroot.pdfsummarizer.config.AppConfig;
-import nl.adgroot.pdfsummarizer.llm.LlmClient;
-import nl.adgroot.pdfsummarizer.llm.ServerPermitPool;
 import nl.adgroot.pdfsummarizer.notes.NotesWriter;
-import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
 import nl.adgroot.pdfsummarizer.notes.records.CardsPage;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfObject;
 import nl.adgroot.pdfsummarizer.pdf.parsing.Chapter;
-import nl.adgroot.pdfsummarizer.prompts.PromptTemplates;
 
 public class ChapterProcessor {
 
@@ -26,18 +21,10 @@ public class ChapterProcessor {
   public CompletableFuture<Void> processChapterAsync(
       Chapter chapter,
       List<PdfObject> pages,
-      String topic,
       BatchPipeline pipeline,
-      List<LlmClient> llms,
-      ServerPermitPool permitPool,
-      ExecutorService permitPoolExecutor,
-      ExecutorService cpuPoolExecutor,
+      BatchContext ctx,
       ExecutorService writerPool,
-      PromptTemplates prompts,
-      AppConfig cfg,
-      ProgressTracker tracker,
-      NotesWriter writer,
-      Path outDir
+      NotesWriter writer
   ) {
 
     final String chapterHeader = chapter.header;
@@ -49,12 +36,12 @@ public class ChapterProcessor {
         .toList();
 
     // Batch by tokens
-    int maxTokensPerChunk = resolveMaxTokensPerChunk(cfg);
+    int maxTokensPerChunk = resolveMaxTokensPerChunk(ctx.cfg());
 
     // Compute base prompt tokens by rendering the primary template with empty content.
-    int basePromptTokens = estimateBasePromptTokens(prompts, cfg, topic, chapterHeader);
+    int basePromptTokens = estimateBasePromptTokens(ctx, chapterHeader);
 
-    List<List<PdfObject>> batches = cfg.ollama.localBatching
+    List<List<PdfObject>> batches = ctx.cfg().ollama.localBatching
         ? splitIntoBatchesByEstimatedTokens(chapterHeader, pagesInChapter, maxTokensPerChunk,
         basePromptTokens)
         : pagesInChapter.stream().map(List::of).toList();
@@ -62,26 +49,14 @@ public class ChapterProcessor {
     List<CompletableFuture<Void>> batchFutures = new ArrayList<>(batches.size());
 
     for (List<PdfObject> batch : batches) {
-      CompletableFuture<Void> bf = pipeline.processBatchAsync(
-              llms,
-              permitPool,
-              permitPoolExecutor,
-              cpuPoolExecutor,
-              prompts,
-              cfg,
-              topic,
-              chapterHeader,
-              batch,
-              tracker,
-              outDir
-          )
+      CompletableFuture<Void> bf = pipeline.processBatchAsync(ctx, chapterHeader, batch)
           .thenAcceptAsync(cardsBySelectedIndex -> {
 
             for (PdfObject p : batch) {
               List<String> cards = cardsBySelectedIndex.getOrDefault(p.getIndex(), List.of());
               p.setCards(cards);
 
-              CardsPage perPage = new CardsPage(topic, chapterHeader);
+              CardsPage perPage = new CardsPage(ctx.topic(), chapterHeader);
               for (String card : cards) {
                 perPage.addCard(card);
               }
@@ -102,7 +77,7 @@ public class ChapterProcessor {
     return CompletableFuture.allOf(batchFutures.toArray(new CompletableFuture[0]))
         .thenAcceptAsync(v -> {
 
-          CardsPage chapterCards = new CardsPage(topic, chapterHeader);
+          CardsPage chapterCards = new CardsPage(ctx.topic(), chapterHeader);
 
           // Add cards in chapter order from each PdfObject
           for (PdfObject p : pagesInChapter) {
@@ -114,8 +89,8 @@ public class ChapterProcessor {
           // Write chapter output file
           try {
             if (chapterCards.hasContent()) {
-              writer.writeCard(outDir, chapterCards);
-              log.info("WROTE chapter: " + chapterHeader + " -> " + outDir.toAbsolutePath());
+              writer.writeCard(ctx.outDir(), chapterCards);
+              log.info("WROTE chapter: " + chapterHeader + " -> " + ctx.outDir().toAbsolutePath());
             } else if (!pagesInChapter.isEmpty()) {
               // a chapter was planned but the prompt resulted in no notes
               log.info("No notes were taken for " + chapterHeader);
@@ -224,17 +199,12 @@ public class ChapterProcessor {
   /**
    * Estimate base prompt token count by rendering the primary template with empty content.
    */
-  private static int estimateBasePromptTokens(
-      PromptTemplates prompts,
-      AppConfig cfg,
-      String topic,
-      String chapterHeader
-  ) {
-    String base = prompts.primary().render(Map.of(
-        "topic", topic,
+  private static int estimateBasePromptTokens(BatchContext ctx, String chapterHeader) {
+    String base = ctx.prompts().primary().render(Map.of(
+        "topic", ctx.topic(),
         "section", chapterHeader,
-        "maxCards", String.valueOf(cfg.cards.maxCardsPerChunk),
-        "maxConcepts", String.valueOf(cfg.cards.maxConceptsPerPage),
+        "maxCards", String.valueOf(ctx.cfg().cards.maxCardsPerChunk),
+        "maxConcepts", String.valueOf(ctx.cfg().cards.maxConceptsPerPage),
         "content", ""
     ));
     return estimateTokens(base);

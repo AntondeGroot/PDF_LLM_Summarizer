@@ -18,6 +18,7 @@ import nl.adgroot.pdfsummarizer.llm.records.LlmMetrics;
 import nl.adgroot.pdfsummarizer.llm.records.LlmResult;
 import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfObject;
+import nl.adgroot.pdfsummarizer.pipeline.BatchContext;
 import nl.adgroot.pdfsummarizer.pipeline.ThreeStagePagePipeline;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplate;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplates;
@@ -61,20 +62,16 @@ class ThreeStagePagePipelineTest {
     AppConfig cfg = new AppConfig();
     cfg.cards.maxConceptsPerPage = 5;
 
-    return new ThreeStagePagePipeline()
-        .processBatchAsync(
-            List.of(stub),
-            new ServerPermitPool(1, 1, true),
-            Executors.newSingleThreadExecutor(),
-            Executors.newSingleThreadExecutor(),
-            threeStagePrompts(),
-            cfg,
-            "topic",
-            "chapter",
-            batch,
-            tracker,
-            outDir
-        ).get();
+    BatchContext ctx = new BatchContext(
+        List.of(stub),
+        new ServerPermitPool(1, 1, true),
+        Executors.newSingleThreadExecutor(),
+        Executors.newSingleThreadExecutor(),
+        threeStagePrompts(),
+        cfg, "topic", tracker, outDir
+    );
+
+    return new ThreeStagePagePipeline().processBatchAsync(ctx, "chapter", batch).get();
   }
 
   // ── Three LLM calls per batch ────────────────────────────────────────────
