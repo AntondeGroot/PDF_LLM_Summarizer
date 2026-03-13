@@ -1,4 +1,4 @@
-package nl.adgroot.pdfsummarizer.text;
+package nl.adgroot.pdfsummarizer.pdf.parsing;
 
 public class Chapter {
   public String header;

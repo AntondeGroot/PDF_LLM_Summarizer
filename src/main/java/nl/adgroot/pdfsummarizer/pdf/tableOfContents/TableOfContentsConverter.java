@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.OptionalInt;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import nl.adgroot.pdfsummarizer.text.Chapter;
+import nl.adgroot.pdfsummarizer.pdf.parsing.Chapter;
 
 public class TableOfContentsConverter {
 

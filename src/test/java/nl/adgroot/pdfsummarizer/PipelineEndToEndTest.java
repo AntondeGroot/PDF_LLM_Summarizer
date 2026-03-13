@@ -24,6 +24,8 @@ import nl.adgroot.pdfsummarizer.pdf.parsing.PdfPreviewComposer;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PreparedPdf;
 import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxPdfSplitter;
 import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxTextExtractor;
+import nl.adgroot.pdfsummarizer.pipeline.ChapterProcessor;
+import nl.adgroot.pdfsummarizer.pipeline.PagePipeline;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplate;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplates;
 import org.apache.pdfbox.pdmodel.PDDocument;

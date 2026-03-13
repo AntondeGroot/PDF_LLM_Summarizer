@@ -13,8 +13,10 @@ import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfObject;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfPreviewComposer;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PreparedPdf;
+import nl.adgroot.pdfsummarizer.pipeline.BatchPipeline;
+import nl.adgroot.pdfsummarizer.pipeline.ChapterProcessor;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplates;
-import nl.adgroot.pdfsummarizer.text.Chapter;
+import nl.adgroot.pdfsummarizer.pdf.parsing.Chapter;
 
 public class AppRunner {
 

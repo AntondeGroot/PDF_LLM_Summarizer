@@ -7,7 +7,6 @@ import java.util.List;
 import nl.adgroot.pdfsummarizer.config.AppConfig;
 import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxPdfSplitter;
 import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxTextExtractor;
-import nl.adgroot.pdfsummarizer.text.Chapter;
 import org.apache.pdfbox.pdmodel.PDDocument;
 
 public class PdfPreparationService {

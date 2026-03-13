@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Objects;
+import nl.adgroot.pdfsummarizer.pdf.parsing.Chapter;
 import nl.adgroot.pdfsummarizer.pdf.parsing.ParsedPDF;
 import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxTextExtractor;
 import org.junit.jupiter.api.Test;
