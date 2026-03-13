@@ -10,8 +10,6 @@ import java.util.concurrent.CompletableFuture;
 import nl.adgroot.pdfsummarizer.config.AppConfig;
 import nl.adgroot.pdfsummarizer.llm.records.LlmMetrics;
 import nl.adgroot.pdfsummarizer.llm.records.LlmResult;
-import okhttp3.Call;
-import okhttp3.Callback;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -24,6 +22,7 @@ public class ChatGptClient implements LlmClient {
   private static final MediaType JSON = MediaType.parse("application/json");
 
   private final OkHttpClient http;
+  private final RetryPolicy retryPolicy;
   private final String url;
   private final String apiKey;
   private final String model;
@@ -32,18 +31,14 @@ public class ChatGptClient implements LlmClient {
     this.url = cfg.baseUrl + cfg.responsesPath;
     this.apiKey = apiKey;
     this.model = cfg.model;
-
-    this.http = HttpClientFactory.create(
-        Duration.ofSeconds(cfg.timeoutSeconds),
-        cfg.concurrency
-    );
+    this.http = HttpClientFactory.create(Duration.ofSeconds(cfg.timeoutSeconds), cfg.concurrency);
+    this.retryPolicy = RetryPolicy.defaults();
   }
 
   @Override
   public CompletableFuture<LlmResult> generateAsync(String prompt) {
     ObjectNode body = MAPPER.createObjectNode();
     body.put("model", model);
-
     body.putArray("input")
         .addObject()
         .put("role", "user")
@@ -57,10 +52,25 @@ public class ChatGptClient implements LlmClient {
         .build();
 
     CompletableFuture<LlmResult> future = new CompletableFuture<>();
-
-    executeWithRetry(req, future, 0);
-
+    retryPolicy.enqueue(http, req, future, this::parseResponse);
     return future;
+  }
+
+  private LlmResult parseResponse(Response r) throws IOException {
+    if (!r.isSuccessful()) {
+      String body = r.body() != null ? r.body().string() : "";
+      throw new IOException("OpenAI error " + r.code() + ":\n" + body);
+    }
+
+    String raw = Objects.requireNonNull(r.body()).string();
+    JsonNode json = MAPPER.readTree(raw);
+
+    String text = json.path("output_text").asText("");
+    if (text.isBlank()) {
+      text = extractTextFallback(json);
+    }
+
+    return new LlmResult(text, new LlmMetrics(0, 0, 0, 0, 0));
   }
 
   private static String extractTextFallback(JsonNode json) {
@@ -72,79 +82,6 @@ public class ChatGptClient implements LlmClient {
       }
     }
     return "";
-  }
-
-  private static final int MAX_RETRIES = 5;
-  private static final long BASE_DELAY_MS = 500;
-
-  private void executeWithRetry(Request request,
-      CompletableFuture<LlmResult> future,
-      int attempt) {
-
-    http.newCall(request).enqueue(new Callback() {
-
-      @Override
-      public void onFailure(Call call, IOException e) {
-        retryOrFail(request, future, attempt, e);
-      }
-
-      @Override
-      public void onResponse(Call call, Response resp) {
-        try (Response r = resp) {
-
-          int code = r.code();
-
-          if (code == 429 || (code >= 500 && code < 600)) {
-            retryOrFail(request, future, attempt,
-                new IOException("Retryable HTTP error: " + code));
-            return;
-          }
-
-          if (!r.isSuccessful()) {
-            String body = r.body() != null ? r.body().string() : "";
-            future.completeExceptionally(
-                new IOException("OpenAI error " + code + ":\n" + body));
-            return;
-          }
-
-          String raw = Objects.requireNonNull(r.body()).string();
-          JsonNode json = MAPPER.readTree(raw);
-
-          String text = json.path("output_text").asText("");
-          if (text.isBlank()) {
-            text = extractTextFallback(json);
-          }
-
-          LlmMetrics metrics = new LlmMetrics(0,0,0,0,0);
-
-          future.complete(new LlmResult(text, metrics));
-
-        } catch (Exception e) {
-          future.completeExceptionally(e);
-        }
-      }
-    });
-  }
-
-  private void retryOrFail(Request request,
-      CompletableFuture<LlmResult> future,
-      int attempt,
-      Exception error) {
-
-    if (attempt >= MAX_RETRIES) {
-      future.completeExceptionally(error);
-      return;
-    }
-
-    long delay = (long) (BASE_DELAY_MS * Math.pow(2, attempt));
-
-    try {
-      Thread.sleep(delay);
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-    }
-
-    executeWithRetry(request, future, attempt + 1);
   }
 
   @Override
