@@ -39,33 +39,21 @@ public class PdfPreviewComposer {
         PDRectangle mediaBox = single.getPage(0).getMediaBox();
 
         // 1) TEXT PAGE (extracted from PDF)
-        {
-          PDPage textPage = new PDPage(mediaBox);
-          out.addPage(textPage);
+        String textContent = "[PDF p." + p.getOriginalPageNr() + "] " + p.getChapter() + "\n"
+            + (p.getTextReadFromPdf() != null ? p.getTextReadFromPdf() : "");
+        log.debug(debugNonAscii("ABOUT TO WRITE (PDF TEXT): " + textContent));
+        writeWrappedText(out, mediaBox, textContent, font);
 
-          String s = p.getTextReadFromPdf();
-          if (s == null) s = "";
-
-          String debug = "[PDF p." + p.getOriginalPageNr() + "] " + p.getChapter() + "\n" + s;
-          log.debug(debugNonAscii("ABOUT TO WRITE (PDF TEXT): " + debug));
-          writeWrappedText(out, textPage, debug, font);
+        // 2) NOTES PAGE(S) (LLM notes — may overflow onto multiple pages)
+        if (!p.hasNotes()) {
+          log.info("no notes were found for page:" + p.getOriginalPageNr());
         }
-
-        // 2) NOTES PAGE (LLM notes)
-        if (p.hasNotes()) {
-          PDPage notesPage = new PDPage(mediaBox);
-          out.addPage(notesPage);
-
-          String s = p.getNotes();
-          if (s == null) s = "";
-
-          String debug = "[PDF p." + p.getOriginalPageNr() + "] " + p.getChapter() + "\n" + s;
-          log.debug(debugNonAscii("ABOUT TO WRITE (NOTES): " + debug));
-
-          writeWrappedText(out, notesPage, debug, font);
-        } else {
-          log.info("no notes were found for page:"+p.getOriginalPageNr());
-        }
+        String notes = p.hasNotes()
+            ? p.getNotes()
+            : "The LLM could not determine any Q&A cards for this page.";
+        String notesContent = "[PDF p." + p.getOriginalPageNr() + "] " + p.getChapter() + "\n" + notes;
+        log.debug(debugNonAscii("ABOUT TO WRITE (NOTES): " + notesContent));
+        writeWrappedText(out, mediaBox, notesContent, font);
       }
 
       out.save(outputPdf.toFile());
@@ -91,34 +79,36 @@ public class PdfPreviewComposer {
     }
   }
 
-  private void writeWrappedText(PDDocument doc, PDPage page, String text, PDFont font) throws IOException {
+  private void writeWrappedText(PDDocument doc, PDRectangle mediaBox, String text, PDFont font) throws IOException {
     float margin = 48f;
     float fontSize = 10f;
     float leading = 1.2f * fontSize;
-
-    PDRectangle box = page.getMediaBox();
-    float maxWidth = box.getWidth() - 2 * margin;
-
-    float x = margin;
-    float y = box.getHeight() - margin;
+    float maxWidth = mediaBox.getWidth() - 2 * margin;
+    int linesPerPage = Math.max(1, (int) ((mediaBox.getHeight() - 2 * margin) / leading));
 
     String safe = (text == null) ? "" : text.replace("\r", "");
+    List<String> allLines = wrapPreserveSpaces(safe, font, fontSize, maxWidth);
 
-    try (PDPageContentStream cs = new PDPageContentStream(doc, page, AppendMode.OVERWRITE, true, true)) {
-      cs.beginText();
-      cs.setFont(font, fontSize);
-      cs.newLineAtOffset(x, y);
+    int offset = 0;
+    do {
+      int end = Math.min(offset + linesPerPage, allLines.size());
+      List<String> pageLines = allLines.subList(offset, end);
+      offset = end;
 
-      for (String line : wrapPreserveSpaces(safe, font, fontSize, maxWidth)) {
-        if (y < margin) break;
+      PDPage page = new PDPage(mediaBox);
+      doc.addPage(page);
 
-        cs.showText(line);
-        cs.newLineAtOffset(0, -leading);
-        y -= leading;
+      try (PDPageContentStream cs = new PDPageContentStream(doc, page, AppendMode.OVERWRITE, true, true)) {
+        cs.beginText();
+        cs.setFont(font, fontSize);
+        cs.newLineAtOffset(margin, mediaBox.getHeight() - margin);
+        for (String line : pageLines) {
+          cs.showText(line);
+          cs.newLineAtOffset(0, -leading);
+        }
+        cs.endText();
       }
-
-      cs.endText();
-    }
+    } while (offset < allLines.size());
   }
 
   private static List<String> wrapPreserveSpaces(String text, PDFont font, float fontSize, float maxWidth)

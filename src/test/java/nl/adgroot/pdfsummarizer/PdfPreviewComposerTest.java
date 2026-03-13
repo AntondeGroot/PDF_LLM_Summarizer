@@ -1,6 +1,7 @@
 package nl.adgroot.pdfsummarizer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -88,7 +89,7 @@ class PdfPreviewComposerTest {
   }
 
   @Test
-  void composeOriginalPlusTextPages_whenNotesMissingForSomePages_includesAllOriginals_plusOnlyExistingNotes() throws Exception {
+  void composeOriginalPlusTextPages_whenNotesMissingForSomePages_includesAllOriginals_plusPlaceholderNotesForEachPage() throws Exception {
     PdfPreviewComposer composer = new PdfPreviewComposer();
 
     int n = 5;
@@ -101,7 +102,7 @@ class PdfPreviewComposerTest {
       pages.add(obj);
     }
 
-    // Only one page has notes
+    // Only one page has notes; the rest get a placeholder notes page
     pages.getFirst().setNotes("ONLY-NOTES");
 
     Path out = Files.createTempFile("preview-missing-", ".pdf");
@@ -110,14 +111,42 @@ class PdfPreviewComposerTest {
       composer.composeOriginalPlusTextPages(pages, out);
 
       try (PDDocument result = Loader.loadPDF(out.toFile())) {
-        // originals = n, notes = 1 => total n+1
-        assertEquals(n + 1, result.getNumberOfPages(),
-            "Should include all originals and only notes pages that exist");
+        // every page gets a text page + a notes page (real or placeholder) => 2*n
+        assertEquals(2 * n, result.getNumberOfPages(),
+            "Every page should have a notes page: real notes or a placeholder");
       }
     } finally {
       for (PdfObject p : pages) {
         try { p.getDocument().close(); } catch (Exception ignored) {}
       }
+      Files.deleteIfExists(out);
+    }
+  }
+
+  @Test
+  void composeOriginalPlusTextPages_whenNotesExceedOnePage_overflowsOntoAdditionalNotesPages() throws Exception {
+    PdfPreviewComposer composer = new PdfPreviewComposer();
+
+    // 100 lines of notes far exceeds what fits on one page (~58-62 lines depending on page size),
+    // so notes must spill onto a second page rather than being cut off.
+    String manyLines = "Q: question?\nA: answer\n---\n".repeat(34); // 102 lines
+    PDDocument d = new PDDocument();
+    d.addPage(new PDPage());
+    PdfObject page = new PdfObject(0, "chapter", d, "some text");
+    page.setNotes(manyLines);
+
+    Path out = Files.createTempFile("preview-overflow-", ".pdf");
+    try {
+      composer.composeOriginalPlusTextPages(List.of(page), out);
+
+      try (PDDocument result = Loader.loadPDF(out.toFile())) {
+        // 1 text page + at least 2 notes pages (overflow)
+        assertTrue(result.getNumberOfPages() >= 3,
+            "Expected at least 3 pages (1 text + 2+ notes) when notes overflow one page, got "
+                + result.getNumberOfPages());
+      }
+    } finally {
+      try { d.close(); } catch (Exception ignored) {}
       Files.deleteIfExists(out);
     }
   }
