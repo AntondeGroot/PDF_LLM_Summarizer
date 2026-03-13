@@ -1,24 +1,17 @@
 package nl.adgroot.pdfsummarizer.pipeline;
 
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
 import nl.adgroot.pdfsummarizer.AppLogger;
-import nl.adgroot.pdfsummarizer.config.AppConfig;
-import nl.adgroot.pdfsummarizer.llm.LlmClient;
-import nl.adgroot.pdfsummarizer.llm.ServerPermitPool;
 import nl.adgroot.pdfsummarizer.notes.CardsParser;
 import nl.adgroot.pdfsummarizer.notes.DefaultCardsParser;
-import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
 import nl.adgroot.pdfsummarizer.notes.records.Card;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfObject;
-import nl.adgroot.pdfsummarizer.prompts.PromptTemplates;
 
 public class PagePipeline implements BatchPipeline {
 
@@ -79,56 +72,47 @@ public class PagePipeline implements BatchPipeline {
 
   /**
    * Implements {@link BatchPipeline}: single-stage batch (all pages → one LLM call).
-   * Uses {@code prompts.single()} as the prompt template.
+   * Uses {@code ctx.prompts().single()} as the prompt template.
    */
   @Override
   public CompletableFuture<Map<Integer, List<String>>> processBatchAsync(
-      List<LlmClient> llms,
-      ServerPermitPool permits,
-      ExecutorService permitPoolExecutor,
-      ExecutorService cpuPoolExecutor,
-      PromptTemplates prompts,
-      AppConfig cfg,
-      String topic,
+      BatchContext ctx,
       String chapterTitle,
-      List<PdfObject> batch,
-      ProgressTracker tracker,
-      Path outDir
+      List<PdfObject> batch
   ) {
     long startNs = System.nanoTime();
     int nowInflight = IN_FLIGHT.incrementAndGet();
-    String prompt = buildPrompt(prompts, topic, chapterTitle, cfg, batch);
+    String prompt = buildPrompt(ctx, chapterTitle, batch);
 
-    return permits.acquireAnyAsync(permitPoolExecutor).thenCompose(serverIndex -> {
-      LlmClient llm = llms.get(serverIndex);
+    return ctx.permits().acquireAnyAsync(ctx.permitPoolExecutor()).thenCompose(serverIndex -> {
+      var llm = ctx.llms().get(serverIndex);
       log.info("START BATCH pages=%d chapter='%s' inflight=%d server=%d url=%s%n",
           batch.size(), chapterTitle, nowInflight, serverIndex, llm.getUrl());
 
       return llm.generateAsync(prompt)
           .thenApplyAsync(result -> {
             try {
-              tracker.finishBatch(batch.size(), result.metrics());
+              ctx.tracker().finishBatch(batch.size(), result.metrics());
               return parseCards(result.response(), batch, cardsParser);
             } finally {
-              permits.release(serverIndex);
+              ctx.permits().release(serverIndex);
             }
-          }, cpuPoolExecutor)
+          }, ctx.cpuPoolExecutor())
           .whenComplete((res, ex) -> {
             long millis = (System.nanoTime() - startNs) / 1_000_000;
             log.info("END   BATCH pages=%d chapter='%s' took=%dms inflight=%d server=%d %s%n",
                 batch.size(), chapterTitle, millis, IN_FLIGHT.decrementAndGet(), serverIndex,
                 (ex != null ? "ERROR=" + ex : ""));
-            if (ex == null) log.info(tracker.formatStatus(millis));
+            if (ex == null) log.info(ctx.tracker().formatStatus(millis));
           });
     });
   }
 
-  private String buildPrompt(PromptTemplates prompts, String topic, String chapterTitle,
-      AppConfig cfg, List<PdfObject> batch) {
-    return prompts.single().render(Map.of(
-        "topic", topic,
+  private String buildPrompt(BatchContext ctx, String chapterTitle, List<PdfObject> batch) {
+    return ctx.prompts().single().render(Map.of(
+        "topic", ctx.topic(),
         "section", chapterTitle,
-        "maxCards", String.valueOf(cfg.cards.maxCardsPerChunk),
+        "maxCards", String.valueOf(ctx.cfg().cards.maxCardsPerChunk),
         "content", renderBatchContent(batch)
     ));
   }

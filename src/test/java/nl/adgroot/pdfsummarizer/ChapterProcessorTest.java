@@ -14,13 +14,13 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 import nl.adgroot.pdfsummarizer.config.AppConfig;
-import nl.adgroot.pdfsummarizer.llm.LlmClient;
 import nl.adgroot.pdfsummarizer.llm.ServerPermitPool;
 import nl.adgroot.pdfsummarizer.notes.NotesWriter;
 import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
 import nl.adgroot.pdfsummarizer.notes.records.CardsPage;
 import nl.adgroot.pdfsummarizer.pdf.parsing.Chapter;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfObject;
+import nl.adgroot.pdfsummarizer.pipeline.BatchContext;
 import nl.adgroot.pdfsummarizer.pipeline.BatchPipeline;
 import nl.adgroot.pdfsummarizer.pipeline.ChapterProcessor;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplate;
@@ -71,37 +71,20 @@ class ChapterProcessorTest {
     // Pipeline stub: returns 1 "card" per page
     BatchPipeline pipeline = new StubPipeline();
 
-    // Other deps (mostly unused by the stub pipeline)
-    List<LlmClient> llms = List.of(); // not used by StubPipeline
-    ServerPermitPool permits = new ServerPermitPool(1, 1, true);
-
-    PromptTemplates prompts = new PromptTemplates(new PromptTemplate("{{content}}"), null, null, null);
     AppConfig cfg = new AppConfig();
     cfg.cards.maxCardsPerChunk = 10;
 
-    ProgressTracker tracker = new ProgressTracker(n);
-
-    NotesWriter writer = new NoopNotesWriter();
-    Path outDir = Files.createTempDirectory("chapterprocessor-test-");
-
-    ChapterProcessor processor = new ChapterProcessor();
+    BatchContext ctx = new BatchContext(
+        List.of(), new ServerPermitPool(1, 1, true),
+        permitExec, cpuExec,
+        new PromptTemplates(new PromptTemplate("{{content}}"), null, null, null),
+        cfg, "Topic", new ProgressTracker(n),
+        Files.createTempDirectory("chapterprocessor-test-")
+    );
 
     // WHEN
-    processor.processChapterAsync(
-        chapter,
-        pages,
-        "Topic",
-        pipeline,
-        llms,
-        permits,
-        permitExec,
-        cpuExec,
-        writerExec,
-        prompts,
-        cfg,
-        tracker,
-        writer,
-        outDir
+    new ChapterProcessor().processChapterAsync(
+        chapter, pages, pipeline, ctx, writerExec, new NoopNotesWriter()
     ).get(2, TimeUnit.SECONDS);
 
     // THEN: every page in the chapter should have notes filled
@@ -128,18 +111,19 @@ class ChapterProcessorTest {
     }
 
     Chapter chapter = new Chapter(chapterHeader, 1, 0);
-    BatchPipeline pipeline = new StubPipeline();
-    ServerPermitPool permits = new ServerPermitPool(1, 1, true);
-    PromptTemplates prompts = new PromptTemplates(new PromptTemplate("{{content}}"), null, null, null);
     AppConfig cfg = new AppConfig();
     cfg.cards.maxCardsPerChunk = 10;
-    ProgressTracker tracker = new ProgressTracker(n);
+
+    BatchContext ctx = new BatchContext(
+        List.of(), new ServerPermitPool(1, 1, true),
+        permitExec, cpuExec,
+        new PromptTemplates(new PromptTemplate("{{content}}"), null, null, null),
+        cfg, "Topic", new ProgressTracker(n),
+        Files.createTempDirectory("chapterprocessor-cards-test-")
+    );
 
     new ChapterProcessor().processChapterAsync(
-        chapter, pages, "Topic", pipeline,
-        List.of(), permits, permitExec, cpuExec, writerExec,
-        prompts, cfg, tracker, new NoopNotesWriter(),
-        Files.createTempDirectory("chapterprocessor-cards-test-")
+        chapter, pages, new StubPipeline(), ctx, writerExec, new NoopNotesWriter()
     ).get(2, TimeUnit.SECONDS);
 
     for (int i = 0; i < n; i++) {
@@ -164,12 +148,16 @@ class ChapterProcessorTest {
     }
 
     Chapter chapter = new Chapter(chapterHeader, 1, 0);
-    BatchPipeline pipeline = new StubPipeline();
-    ServerPermitPool permits = new ServerPermitPool(1, 1, true);
-    PromptTemplates prompts = new PromptTemplates(new PromptTemplate("{{content}}"), null, null, null);
     AppConfig cfg = new AppConfig();
     cfg.cards.maxCardsPerChunk = 10;
-    ProgressTracker tracker = new ProgressTracker(n);
+
+    BatchContext ctx = new BatchContext(
+        List.of(), new ServerPermitPool(1, 1, true),
+        permitExec, cpuExec,
+        new PromptTemplates(new PromptTemplate("{{content}}"), null, null, null),
+        cfg, "Topic", new ProgressTracker(n),
+        Files.createTempDirectory("chapterprocessor-order-test-")
+    );
 
     // Capture the CardsPage written to the chapter file
     AtomicReference<CardsPage> captured = new AtomicReference<>();
@@ -181,10 +169,7 @@ class ChapterProcessorTest {
     };
 
     new ChapterProcessor().processChapterAsync(
-        chapter, pages, "Topic", pipeline,
-        List.of(), permits, permitExec, cpuExec, writerExec,
-        prompts, cfg, tracker, capturingWriter,
-        Files.createTempDirectory("chapterprocessor-order-test-")
+        chapter, pages, new StubPipeline(), ctx, writerExec, capturingWriter
     ).get(2, TimeUnit.SECONDS);
 
     CardsPage written = captured.get();
@@ -232,14 +217,18 @@ class ChapterProcessorTest {
       List<PdfObject> pages, String chapter, AppConfig cfg) throws Exception {
 
     CapturingPipeline capturing = new CapturingPipeline();
-    PromptTemplates prompts = new PromptTemplates(new PromptTemplate(""), null, null, null);
-    ServerPermitPool permits = new ServerPermitPool(1, 1, true);
+
+    BatchContext ctx = new BatchContext(
+        List.of(), new ServerPermitPool(1, 1, true),
+        permitExec, cpuExec,
+        new PromptTemplates(new PromptTemplate(""), null, null, null),
+        cfg, "Topic", new ProgressTracker(pages.size()),
+        Files.createTempDirectory("batching-test-")
+    );
 
     new ChapterProcessor().processChapterAsync(
-        new Chapter(chapter, 1, 0), pages, "Topic", capturing,
-        List.of(), permits, permitExec, cpuExec, writerExec,
-        prompts, cfg, new ProgressTracker(pages.size()),
-        new NoopNotesWriter(), Files.createTempDirectory("batching-test-")
+        new Chapter(chapter, 1, 0), pages, capturing, ctx,
+        writerExec, new NoopNotesWriter()
     ).get(2, TimeUnit.SECONDS);
 
     return capturing.batches;
@@ -331,19 +320,8 @@ class ChapterProcessorTest {
 
     @Override
     public CompletableFuture<Map<Integer, List<String>>> processBatchAsync(
-        List<LlmClient> llms,
-        ServerPermitPool permits,
-        ExecutorService permitPoolExecutor,
-        ExecutorService cpuPoolExecutor,
-        PromptTemplates prompts,
-        AppConfig cfg,
-        String topic,
-        String chapterTitle,
-        List<PdfObject> batch,
-        ProgressTracker tracker,
-        Path outDir
+        BatchContext ctx, String chapterTitle, List<PdfObject> batch
     ) {
-      // Return one "card" per PdfObject, keyed by PdfObject.index
       Map<Integer, List<String>> out = new java.util.HashMap<>();
       for (var p : batch) {
         out.put(p.getIndex(), List.of("Card for index=" + p.getIndex()));
@@ -358,10 +336,7 @@ class ChapterProcessorTest {
 
     @Override
     public CompletableFuture<Map<Integer, List<String>>> processBatchAsync(
-        List<LlmClient> llms, ServerPermitPool permits,
-        ExecutorService permitPoolExecutor, ExecutorService cpuPoolExecutor,
-        PromptTemplates prompts, AppConfig cfg, String topic, String chapterTitle,
-        List<PdfObject> batch, ProgressTracker tracker, Path outDir
+        BatchContext ctx, String chapterTitle, List<PdfObject> batch
     ) {
       batches.add(batch.stream().map(PdfObject::getIndex).toList());
       Map<Integer, List<String>> out = new java.util.HashMap<>();

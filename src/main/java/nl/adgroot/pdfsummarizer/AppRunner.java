@@ -4,7 +4,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 import nl.adgroot.pdfsummarizer.config.AppConfig;
 import nl.adgroot.pdfsummarizer.llm.LlmClient;
 import nl.adgroot.pdfsummarizer.llm.ServerPermitPool;
@@ -13,6 +12,7 @@ import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfObject;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfPreviewComposer;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PreparedPdf;
+import nl.adgroot.pdfsummarizer.pipeline.BatchContext;
 import nl.adgroot.pdfsummarizer.pipeline.BatchPipeline;
 import nl.adgroot.pdfsummarizer.pipeline.ChapterProcessor;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplates;
@@ -48,21 +48,19 @@ public class AppRunner {
       Path outDir
   ) throws Exception {
     List<PdfObject> pages = prepared.pdfPages();
-    int totalPages = prepared.pdfPages().size();
-    ProgressTracker tracker = new ProgressTracker(totalPages);
+    ProgressTracker tracker = new ProgressTracker(pages.size());
 
-    ExecutorService permitPoolExecutor = exec.permitPoolExecutor();
-    ExecutorService cpuPool = exec.cpuPool();
-    ExecutorService writerPool = exec.writerPool();
+    BatchContext ctx = new BatchContext(
+        llms, permitPool,
+        exec.permitPoolExecutor(), exec.cpuPool(),
+        prompts, cfg, topic, tracker, outDir
+    );
 
     List<CompletableFuture<Void>> chapterWrites = new ArrayList<>();
 
     for (Chapter chapter : prepared.tableOfContent()) {
       chapterWrites.add(chapterProcessor.processChapterAsync(
-          chapter, pages, topic, pipeline,
-          llms, permitPool,
-          permitPoolExecutor, cpuPool, writerPool,
-          prompts, cfg, tracker, writer, outDir
+          chapter, pages, pipeline, ctx, exec.writerPool(), writer
       ));
     }
 

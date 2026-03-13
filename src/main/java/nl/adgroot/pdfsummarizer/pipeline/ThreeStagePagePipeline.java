@@ -7,17 +7,11 @@ import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import nl.adgroot.pdfsummarizer.AppLogger;
-import nl.adgroot.pdfsummarizer.config.AppConfig;
-import nl.adgroot.pdfsummarizer.llm.LlmClient;
-import nl.adgroot.pdfsummarizer.llm.ServerPermitPool;
 import nl.adgroot.pdfsummarizer.notes.CardsParser;
 import nl.adgroot.pdfsummarizer.notes.DefaultCardsParser;
-import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfObject;
-import nl.adgroot.pdfsummarizer.prompts.PromptTemplates;
 
 import static nl.adgroot.pdfsummarizer.notes.NotesWriter.safeFileName;
 
@@ -48,33 +42,25 @@ public class ThreeStagePagePipeline implements BatchPipeline {
 
   @Override
   public CompletableFuture<Map<Integer, List<String>>> processBatchAsync(
-      List<LlmClient> llms,
-      ServerPermitPool permits,
-      ExecutorService permitPoolExecutor,
-      ExecutorService cpuPoolExecutor,
-      PromptTemplates prompts,
-      AppConfig cfg,
-      String topic,
+      BatchContext ctx,
       String chapterTitle,
-      List<PdfObject> batch,
-      ProgressTracker tracker,
-      Path outDir
+      List<PdfObject> batch
   ) {
     long startNs = System.nanoTime();
     int nowInflight = IN_FLIGHT.incrementAndGet();
 
     String batchContent = PagePipeline.renderBatchContent(batch);
 
-    String step1Prompt = prompts.step1().render(Map.of(
-        "topic", topic,
+    String step1Prompt = ctx.prompts().step1().render(Map.of(
+        "topic", ctx.topic(),
         "section", chapterTitle,
-        "maxConcepts", String.valueOf(cfg.cards.maxConceptsPerPage),
+        "maxConcepts", String.valueOf(ctx.cfg().cards.maxConceptsPerPage),
         "content", batchContent
     ));
 
-    return permits.acquireAnyAsync(permitPoolExecutor)
+    return ctx.permits().acquireAnyAsync(ctx.permitPoolExecutor())
         .thenCompose(serverIndex -> {
-          LlmClient llm = llms.get(serverIndex);
+          var llm = ctx.llms().get(serverIndex);
 
           log.info("START 3-STAGE BATCH pages=%d chapter='%s' inflight=%d server=%d url=%s%n",
               batch.size(), chapterTitle, nowInflight, serverIndex, llm.getUrl());
@@ -84,50 +70,50 @@ public class ThreeStagePagePipeline implements BatchPipeline {
               .thenComposeAsync(step1Result -> {
                 String concepts = step1Result.response();
                 logStep(1, chapterTitle, batch.size());
-                appendDebugFile(outDir, "step1_concepts", chapterTitle, concepts);
+                appendDebugFile(ctx.outDir(), "step1_concepts", chapterTitle, concepts);
 
-                String step2Prompt = prompts.step2().render(Map.of(
-                    "topic", topic,
+                String step2Prompt = ctx.prompts().step2().render(Map.of(
+                    "topic", ctx.topic(),
                     "section", chapterTitle,
                     "concepts", concepts
                 ));
 
                 // ── Step 2: generate cards from concepts ──────────────────
                 return llm.generateAsync(step2Prompt);
-              }, cpuPoolExecutor)
+              }, ctx.cpuPoolExecutor())
 
               .thenComposeAsync(step2Result -> {
                 String rawCards = step2Result.response();
                 logStep(2, chapterTitle, batch.size());
-                appendDebugFile(outDir, "step2_cards", chapterTitle, rawCards);
+                appendDebugFile(ctx.outDir(), "step2_cards", chapterTitle, rawCards);
 
-                String step3Prompt = prompts.step3().render(Map.of(
-                    "topic", topic,
+                String step3Prompt = ctx.prompts().step3().render(Map.of(
+                    "topic", ctx.topic(),
                     "cards", rawCards
                 ));
 
                 // ── Step 3: refine + deduplicate ──────────────────────────
                 return llm.generateAsync(step3Prompt);
-              }, cpuPoolExecutor)
+              }, ctx.cpuPoolExecutor())
 
               .thenApplyAsync(step3Result -> {
                 try {
                   String refined = step3Result.response();
-                  tracker.finishBatch(batch.size(), step3Result.metrics());
+                  ctx.tracker().finishBatch(batch.size(), step3Result.metrics());
                   logStep(3, chapterTitle, batch.size());
 
                   return PagePipeline.parseCards(refined, batch, cardsParser);
                 } finally {
-                  permits.release(serverIndex);
+                  ctx.permits().release(serverIndex);
                 }
-              }, cpuPoolExecutor)
+              }, ctx.cpuPoolExecutor())
 
               .whenComplete((res, ex) -> {
                 long millis = (System.nanoTime() - startNs) / 1_000_000;
                 log.info("END   3-STAGE BATCH pages=%d chapter='%s' took=%dms inflight=%d server=%d %s%n",
                     batch.size(), chapterTitle, millis, IN_FLIGHT.decrementAndGet(), serverIndex,
                     (ex != null ? "ERROR=" + ex : ""));
-                if (ex == null) log.info(tracker.formatStatus(millis));
+                if (ex == null) log.info(ctx.tracker().formatStatus(millis));
               });
         });
   }

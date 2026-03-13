@@ -17,6 +17,7 @@ import nl.adgroot.pdfsummarizer.llm.records.LlmResult;
 import nl.adgroot.pdfsummarizer.notes.DefaultCardsParser;
 import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfObject;
+import nl.adgroot.pdfsummarizer.pipeline.BatchContext;
 import nl.adgroot.pdfsummarizer.pipeline.PagePipeline;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplate;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplates;
@@ -236,19 +237,16 @@ class PagePipelineTest {
     AppConfig cfg = new AppConfig();
     cfg.cards.maxCardsPerChunk = 10;
 
-    return new PagePipeline()
-        .processBatchAsync(
-            List.of(stub),
-            new ServerPermitPool(1, 1, true),
-            Executors.newSingleThreadExecutor(),
-            Executors.newSingleThreadExecutor(),
-            new PromptTemplates(new PromptTemplate("{{content}}"), null, null, null),
-            cfg,
-            "topic",
-            "chapter",
-            batch,
-            tracker,
-            Files.createTempDirectory("pagepipeline-test-")
-        ).get();
+    BatchContext ctx = new BatchContext(
+        List.of(stub),
+        new ServerPermitPool(1, 1, true),
+        Executors.newSingleThreadExecutor(),
+        Executors.newSingleThreadExecutor(),
+        new PromptTemplates(new PromptTemplate("{{content}}"), null, null, null),
+        cfg, "topic", tracker,
+        Files.createTempDirectory("pagepipeline-test-")
+    );
+
+    return new PagePipeline().processBatchAsync(ctx, "chapter", batch).get();
   }
 }
