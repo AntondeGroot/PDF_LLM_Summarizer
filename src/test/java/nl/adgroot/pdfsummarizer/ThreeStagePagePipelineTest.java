@@ -18,6 +18,7 @@ import nl.adgroot.pdfsummarizer.llm.records.LlmMetrics;
 import nl.adgroot.pdfsummarizer.llm.records.LlmResult;
 import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfObject;
+import nl.adgroot.pdfsummarizer.pipeline.ThreeStagePagePipeline;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplate;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplates;
 import org.junit.jupiter.api.Test;

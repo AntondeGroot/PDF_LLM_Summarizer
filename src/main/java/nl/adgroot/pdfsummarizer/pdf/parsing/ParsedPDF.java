@@ -5,7 +5,6 @@ import static nl.adgroot.pdfsummarizer.pdf.tableOfContents.TableOfContentsConver
 import java.util.ArrayList;
 import java.util.List;
 import nl.adgroot.pdfsummarizer.pdf.tableOfContents.TableOfContentsUtil;
-import nl.adgroot.pdfsummarizer.text.Chapter;
 
 public class ParsedPDF {
   private final List<Chapter> tableOfContent;

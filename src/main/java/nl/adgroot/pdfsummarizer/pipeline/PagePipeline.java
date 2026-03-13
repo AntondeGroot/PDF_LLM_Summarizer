@@ -1,4 +1,4 @@
-package nl.adgroot.pdfsummarizer;
+package nl.adgroot.pdfsummarizer.pipeline;
 
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -9,6 +9,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
+import nl.adgroot.pdfsummarizer.AppLogger;
 import nl.adgroot.pdfsummarizer.config.AppConfig;
 import nl.adgroot.pdfsummarizer.llm.LlmClient;
 import nl.adgroot.pdfsummarizer.llm.ServerPermitPool;
@@ -48,7 +49,7 @@ public class PagePipeline implements BatchPipeline {
   private static final Pattern PAGE_BLOCK =
       Pattern.compile("(?s)===PAGE\\s+(\\d+)===\\s*(.*?)\\s*===END PAGE===");
 
-  static Map<Integer, String> splitPageBlocks(String md) {
+  public static Map<Integer, String> splitPageBlocks(String md) {
     Map<Integer, String> out = new HashMap<>();
     if (md == null || md.isBlank()) return out;
 
@@ -61,7 +62,7 @@ public class PagePipeline implements BatchPipeline {
     return out;
   }
 
-  static String renderBatchContent(List<PdfObject> batch) {
+  public static String renderBatchContent(List<PdfObject> batch) {
     StringBuilder sb = new StringBuilder();
     for (int i = 0; i < batch.size(); i++) {
       PdfObject p = batch.get(i);
@@ -132,7 +133,7 @@ public class PagePipeline implements BatchPipeline {
     ));
   }
 
-  static Map<Integer, List<String>> parseCards(String md, List<PdfObject> batch, CardsParser cardsParser) {
+  public static Map<Integer, List<String>> parseCards(String md, List<PdfObject> batch, CardsParser cardsParser) {
     Map<Integer, String> pageMd = splitPageBlocks(md);
     Map<Integer, List<String>> result = new HashMap<>();
     for (int i = 0; i < batch.size(); i++) {

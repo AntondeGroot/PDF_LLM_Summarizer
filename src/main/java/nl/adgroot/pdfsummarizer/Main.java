@@ -13,6 +13,9 @@ import nl.adgroot.pdfsummarizer.pdf.parsing.PdfPreviewComposer;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PreparedPdf;
 import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxPdfSplitter;
 import nl.adgroot.pdfsummarizer.pdf.reader.PdfBoxTextExtractor;
+import nl.adgroot.pdfsummarizer.pipeline.ChapterProcessor;
+import nl.adgroot.pdfsummarizer.pipeline.LlmFactory;
+import nl.adgroot.pdfsummarizer.pipeline.PipelineFactory;
 
 public class Main {
 

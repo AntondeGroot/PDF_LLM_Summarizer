@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import nl.adgroot.pdfsummarizer.config.AppConfig;
 import nl.adgroot.pdfsummarizer.llm.OllamaClient;
 import nl.adgroot.pdfsummarizer.llm.ChatGptClient;
+import nl.adgroot.pdfsummarizer.pipeline.LlmFactory;
 import org.junit.jupiter.api.Test;
 
 class LlmFactoryTest {

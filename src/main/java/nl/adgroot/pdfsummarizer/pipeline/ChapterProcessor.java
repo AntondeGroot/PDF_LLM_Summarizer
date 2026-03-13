@@ -1,4 +1,4 @@
-package nl.adgroot.pdfsummarizer;
+package nl.adgroot.pdfsummarizer.pipeline;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 
+import nl.adgroot.pdfsummarizer.AppLogger;
 import nl.adgroot.pdfsummarizer.config.AppConfig;
 import nl.adgroot.pdfsummarizer.llm.LlmClient;
 import nl.adgroot.pdfsummarizer.llm.ServerPermitPool;
@@ -15,8 +16,8 @@ import nl.adgroot.pdfsummarizer.notes.NotesWriter;
 import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
 import nl.adgroot.pdfsummarizer.notes.records.CardsPage;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfObject;
+import nl.adgroot.pdfsummarizer.pdf.parsing.Chapter;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplates;
-import nl.adgroot.pdfsummarizer.text.Chapter;
 
 public class ChapterProcessor {
 

@@ -1,6 +1,7 @@
-package nl.adgroot.pdfsummarizer;
+package nl.adgroot.pdfsummarizer.pipeline;
 
 import java.io.IOException;
+import nl.adgroot.pdfsummarizer.AppLogger;
 import nl.adgroot.pdfsummarizer.config.AppConfig;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplate;
 import nl.adgroot.pdfsummarizer.prompts.PromptTemplates;

@@ -1,6 +1,7 @@
-package nl.adgroot.pdfsummarizer;
+package nl.adgroot.pdfsummarizer.pipeline;
 
 import java.util.List;
+import nl.adgroot.pdfsummarizer.AppLogger;
 import nl.adgroot.pdfsummarizer.config.AppConfig;
 import nl.adgroot.pdfsummarizer.llm.ChatGptClient;
 import nl.adgroot.pdfsummarizer.llm.LlmClient;

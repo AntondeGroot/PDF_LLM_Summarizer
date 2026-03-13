@@ -1,4 +1,4 @@
-package nl.adgroot.pdfsummarizer;
+package nl.adgroot.pdfsummarizer.pipeline;
 
 import java.nio.file.Path;
 import java.util.List;

@@ -5,6 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import nl.adgroot.pdfsummarizer.config.AppConfig;
+import nl.adgroot.pdfsummarizer.pipeline.PagePipeline;
+import nl.adgroot.pdfsummarizer.pipeline.PipelineFactory;
+import nl.adgroot.pdfsummarizer.pipeline.ThreeStagePagePipeline;
 import org.junit.jupiter.api.Test;
 
 class PipelineFactoryTest {
