@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import nl.adgroot.pdfsummarizer.AppLogger;
+import nl.adgroot.pdfsummarizer.llm.records.LlmResult;
 import nl.adgroot.pdfsummarizer.notes.CardsParser;
 import nl.adgroot.pdfsummarizer.notes.DefaultCardsParser;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfObject;
@@ -27,10 +28,15 @@ import static nl.adgroot.pdfsummarizer.notes.NotesWriter.safeFileName;
 public class ThreeStagePagePipeline implements BatchPipeline {
 
   private static final AtomicInteger IN_FLIGHT = new AtomicInteger(0);
+  private static final AppLogger log = AppLogger.getLogger(ThreeStagePagePipeline.class);
 
   private final CardsParser cardsParser;
 
-  private static final AppLogger log = AppLogger.getLogger(ThreeStagePagePipeline.class);
+  /** Carries step 1 + step 2 outputs through the async chain. */
+  private record IntermediateStages(String concepts, String rawCards) {}
+
+  /** Carries all three stage outputs to the final apply step. */
+  private record AllStages(String concepts, String rawCards, LlmResult step3Result) {}
 
   public ThreeStagePagePipeline() {
     this(new DefaultCardsParser());
@@ -79,11 +85,12 @@ public class ThreeStagePagePipeline implements BatchPipeline {
                 ));
 
                 // ── Step 2: generate cards from concepts ──────────────────
-                return llm.generateAsync(step2Prompt);
+                return llm.generateAsync(step2Prompt)
+                    .thenApply(r -> new IntermediateStages(concepts, r.response()));
               }, ctx.cpuPoolExecutor())
 
-              .thenComposeAsync(step2Result -> {
-                String rawCards = step2Result.response();
+              .thenComposeAsync(intermediate -> {
+                String rawCards = intermediate.rawCards();
                 logStep(2, chapterTitle, batch.size());
                 appendDebugFile(ctx.outDir(), "step2_cards", chapterTitle, rawCards);
 
@@ -93,16 +100,21 @@ public class ThreeStagePagePipeline implements BatchPipeline {
                 ));
 
                 // ── Step 3: refine + deduplicate ──────────────────────────
-                return llm.generateAsync(step3Prompt);
+                return llm.generateAsync(step3Prompt)
+                    .thenApply(r -> new AllStages(intermediate.concepts(), rawCards, r));
               }, ctx.cpuPoolExecutor())
 
-              .thenApplyAsync(step3Result -> {
+              .thenApplyAsync(stages -> {
                 try {
-                  String refined = step3Result.response();
-                  ctx.tracker().finishBatch(batch.size(), step3Result.metrics());
+                  ctx.tracker().finishBatch(batch.size(), stages.step3Result().metrics());
                   logStep(3, chapterTitle, batch.size());
 
-                  return PagePipeline.parseCards(refined, batch, cardsParser);
+                  var debugInfo = new PdfObject.StageDebugInfo(
+                      stages.concepts(), stages.rawCards());
+                  batch.forEach(p -> p.setStageDebugInfo(debugInfo));
+
+                  return PagePipeline.parseCards(
+                      stages.step3Result().response(), batch, cardsParser);
                 } finally {
                   ctx.permits().release(serverIndex);
                 }

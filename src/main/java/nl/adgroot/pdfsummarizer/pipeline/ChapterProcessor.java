@@ -60,10 +60,42 @@ public class ChapterProcessor {
       List<String> cards = cardsByIndex.getOrDefault(p.getIndex(), List.of());
       p.setCards(cards);
 
-      CardsPage perPage = new CardsPage(topic, chapterHeader);
-      cards.forEach(perPage::addCard);
-      p.setNotes(perPage.hasContent() ? perPage.toString() : "");
+      PdfObject.StageDebugInfo debug = p.getStageDebugInfo();
+      if (debug != null) {
+        p.setNotes(formatThreeStageNotes(debug, cards));
+      } else {
+        CardsPage perPage = new CardsPage(topic, chapterHeader);
+        cards.forEach(perPage::addCard);
+        p.setNotes(perPage.hasContent() ? perPage.toString() : "");
+      }
     }
+  }
+
+  private static String formatThreeStageNotes(
+      PdfObject.StageDebugInfo debug, List<String> refinedCards
+  ) {
+    StringBuilder sb = new StringBuilder();
+
+    sb.append("=== Step 1: Concepts ===\n");
+    sb.append(debug.concepts().isBlank()
+        ? "The LLM could not determine any concepts."
+        : debug.concepts().strip());
+    sb.append("\n\n");
+
+    sb.append("=== Step 2: Raw cards ===\n");
+    sb.append(debug.rawCards().isBlank()
+        ? "The LLM could not make any cards."
+        : debug.rawCards().strip());
+    sb.append("\n\n");
+
+    sb.append("=== Step 3: Refined cards ===\n");
+    if (refinedCards.isEmpty()) {
+      sb.append("The LLM could not determine any Q&A cards for this page.");
+    } else {
+      refinedCards.forEach(card -> sb.append(card).append("\n\n"));
+    }
+
+    return sb.toString().strip();
   }
 
   private static void writeChapterFile(
