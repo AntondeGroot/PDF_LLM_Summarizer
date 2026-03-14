@@ -16,6 +16,10 @@ public class PdfObject {
   private String notes;              // formatted notes (per page, for preview PDF)
   private String summary;            // optional future
 
+  /** Intermediate outputs from the three-stage pipeline, stored for preview display. */
+  public record StageDebugInfo(String concepts, String rawCards) {}
+  private StageDebugInfo stageDebugInfo;
+
   public PdfObject(int index, String chapter, PDDocument document, String text) {
     this(index, index + 1, chapter, document, text);
   }
@@ -74,5 +78,13 @@ public class PdfObject {
 
   public void setSummary(String summary) {
     this.summary = summary;
+  }
+
+  public StageDebugInfo getStageDebugInfo() {
+    return stageDebugInfo;
+  }
+
+  public void setStageDebugInfo(StageDebugInfo stageDebugInfo) {
+    this.stageDebugInfo = stageDebugInfo;
   }
 }
