@@ -8,6 +8,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 
 import nl.adgroot.pdfsummarizer.AppLogger;
+import nl.adgroot.pdfsummarizer.notes.CheckpointManager;
 import nl.adgroot.pdfsummarizer.notes.NotesWriter;
 import nl.adgroot.pdfsummarizer.notes.records.CardsPage;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfObject;
@@ -24,6 +25,18 @@ public class ChapterProcessor {
       BatchContext ctx,
       ExecutorService writerPool,
       NotesWriter writer
+  ) {
+    return processChapterAsync(chapter, pages, pipeline, ctx, writerPool, writer, null);
+  }
+
+  public CompletableFuture<Void> processChapterAsync(
+      Chapter chapter,
+      List<PdfObject> pages,
+      BatchPipeline pipeline,
+      BatchContext ctx,
+      ExecutorService writerPool,
+      NotesWriter writer,
+      CheckpointManager checkpoint
   ) {
     final String chapterHeader = chapter.header;
     log.info("Scheduling chapter: " + chapterHeader);
@@ -46,8 +59,10 @@ public class ChapterProcessor {
     }
 
     return CompletableFuture.allOf(batchFutures.toArray(new CompletableFuture[0]))
-        .thenAcceptAsync(v -> writeChapterFile(pagesInChapter, chapterHeader, ctx, writer),
-            writerPool);
+        .thenAcceptAsync(v -> {
+          writeChapterFile(pagesInChapter, chapterHeader, ctx, writer);
+          if (checkpoint != null) checkpoint.markCompleted(chapterHeader);
+        }, writerPool);
   }
 
   private static void applyBatchResults(

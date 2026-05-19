@@ -7,6 +7,7 @@ import java.util.concurrent.CompletableFuture;
 import nl.adgroot.pdfsummarizer.config.AppConfig;
 import nl.adgroot.pdfsummarizer.llm.LlmClient;
 import nl.adgroot.pdfsummarizer.llm.ServerPermitPool;
+import nl.adgroot.pdfsummarizer.notes.CheckpointManager;
 import nl.adgroot.pdfsummarizer.notes.NotesWriter;
 import nl.adgroot.pdfsummarizer.notes.ProgressTracker;
 import nl.adgroot.pdfsummarizer.pdf.parsing.PdfObject;
@@ -19,6 +20,8 @@ import nl.adgroot.pdfsummarizer.prompts.PromptTemplates;
 import nl.adgroot.pdfsummarizer.pdf.parsing.Chapter;
 
 public class AppRunner {
+
+  private static final AppLogger log = AppLogger.getLogger(AppRunner.class);
 
   private final ChapterProcessor chapterProcessor;
   private final BatchPipeline pipeline;
@@ -49,6 +52,7 @@ public class AppRunner {
   ) throws Exception {
     List<PdfObject> pages = prepared.pdfPages();
     ProgressTracker tracker = new ProgressTracker(pages.size());
+    CheckpointManager checkpoint = new CheckpointManager(outDir);
 
     BatchContext ctx = new BatchContext(
         llms, permitPool,
@@ -59,8 +63,15 @@ public class AppRunner {
     List<CompletableFuture<Void>> chapterWrites = new ArrayList<>();
 
     for (Chapter chapter : prepared.tableOfContent()) {
+      if (checkpoint.isCompleted(chapter.header)) {
+        log.info("Skipping chapter (already done): " + chapter.header);
+        pages.stream()
+            .filter(p -> chapter.header.equals(p.getChapter()))
+            .forEach(p -> tracker.finishPage());
+        continue;
+      }
       chapterWrites.add(chapterProcessor.processChapterAsync(
-          chapter, pages, pipeline, ctx, exec.writerPool(), writer
+          chapter, pages, pipeline, ctx, exec.writerPool(), writer, checkpoint
       ));
     }
 
