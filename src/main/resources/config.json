@@ -18,6 +18,13 @@
     "timeoutSeconds": 120,
     "concurrency": 4
   },
+  "claude": {
+    "enabled": false,
+    "model": "claude-opus-4-7",
+    "maxTokens": 8096,
+    "timeoutSeconds": 120,
+    "concurrency": 4
+  },
   "chunking": {
     "maxTokensPerChunk": 12000,
     "minTokensPerChunk": 2000
