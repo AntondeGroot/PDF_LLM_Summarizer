@@ -4,10 +4,11 @@
     "servers": 2,
     "modelsPerServer": ["llama3.1:8b"],
     "concurrency": 2,
-    "temperature": 0.3,
+    "temperature": 0.1,
     "timeoutSeconds": 120,
     "localBatching": false,
-    "pipeline3StepsMode": true
+    "pipeline3StepsMode": true,
+    "refineStep": false
   },
   "openai": {
     "enabled": false,
@@ -27,7 +28,7 @@
     "maxConceptsPerPage": 10
   },
   "preview": {
-    "enabled": true,
+    "enabled": false,
     "randomPages": false,
     "nrPages": 10,
     "combinePdfWithNotes": true

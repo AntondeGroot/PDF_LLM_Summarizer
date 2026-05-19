@@ -27,7 +27,7 @@ public class PromptTemplate {
     }
   }
 
-  public String render(Map<String, String> vars) {
+public String render(Map<String, String> vars) {
     String result = template;
 
     for (Map.Entry<String, String> e : vars.entrySet()) {
