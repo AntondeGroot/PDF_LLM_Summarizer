@@ -14,14 +14,21 @@ public final class PipelineFactory {
 
   public static PipelineSetup create(AppConfig cfg) throws IOException {
     if (cfg.ollama.pipeline3StepsMode) {
-      log.info("Pipeline: three-stage (concept extraction → card generation → refinement)");
+      PromptTemplate step3 = cfg.ollama.refineStep
+          ? PromptTemplate.loadResource("prompt_step3_refine.txt")
+          : null;
+      if (step3 == null) {
+        log.info("Pipeline: two-stage (concept extraction → card generation; step 3 disabled)");
+      } else {
+        log.info("Pipeline: three-stage (concept extraction → card generation → refinement)");
+      }
       return new PipelineSetup(
           new ThreeStagePagePipeline(),
           new PromptTemplates(
               null,
               PromptTemplate.loadResource("prompt_step1_concepts.txt"),
               PromptTemplate.loadResource("prompt_step2_cards.txt"),
-              PromptTemplate.loadResource("prompt_step3_refine.txt")
+              step3
           )
       );
     }

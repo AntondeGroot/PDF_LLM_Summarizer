@@ -45,6 +45,9 @@ public class AppConfig {
     // "single"     false → uses prompt.txt (one LLM call per batch).
     // "three-stage" true → uses prompt_step1_concepts.txt → prompt_step2_cards.txt → prompt_step3_refine.txt.
     public boolean pipeline3StepsMode = false;
+
+    // When pipeline3StepsMode is true: set to false to skip step 3 (refinement) and use step 2 output directly.
+    public boolean refineStep = true;
   }
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class OpenAiConfig {
