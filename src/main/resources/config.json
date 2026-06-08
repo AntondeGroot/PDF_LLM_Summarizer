@@ -20,7 +20,7 @@
   },
   "claude": {
     "enabled": false,
-    "model": "claude-opus-4-7",
+    "model": "claude-opus-4-8",
     "maxTokens": 8096,
     "timeoutSeconds": 120,
     "concurrency": 4
