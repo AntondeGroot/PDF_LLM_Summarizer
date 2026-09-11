@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 public class AppConfig {
   public OllamaConfig ollama = new OllamaConfig();
   public OpenAiConfig openai = new OpenAiConfig();
+  public ClaudeConfig claude = new ClaudeConfig();
   public ChunkingConfig chunking = new ChunkingConfig();
   public CardsConfig cards = new CardsConfig();
   public PreviewConfig preview = new PreviewConfig();
@@ -45,6 +46,9 @@ public class AppConfig {
     // "single"     false → uses prompt.txt (one LLM call per batch).
     // "three-stage" true → uses prompt_step1_concepts.txt → prompt_step2_cards.txt → prompt_step3_refine.txt.
     public boolean pipeline3StepsMode = false;
+
+    // When pipeline3StepsMode is true: set to false to skip step 3 (refinement) and use step 2 output directly.
+    public boolean refineStep = true;
   }
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class OpenAiConfig {
@@ -52,6 +56,17 @@ public class AppConfig {
     public String baseUrl = "https://api.openai.com";
     public String responsesPath = "/v1/responses";
     public String model = "gpt-4.1-mini";
+    public int timeoutSeconds = 120;
+    public int concurrency = 4;
+  }
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public static class ClaudeConfig {
+    public boolean enabled = false;
+    public String baseUrl = "https://api.anthropic.com";
+    public String messagesPath = "/v1/messages";
+    public String model = "claude-opus-4-7";
+    public int maxTokens = 8096;
     public int timeoutSeconds = 120;
     public int concurrency = 4;
   }

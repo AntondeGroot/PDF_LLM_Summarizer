@@ -4,16 +4,24 @@
     "servers": 2,
     "modelsPerServer": ["llama3.1:8b"],
     "concurrency": 2,
-    "temperature": 0.3,
+    "temperature": 0.1,
     "timeoutSeconds": 120,
     "localBatching": false,
-    "pipeline3StepsMode": true
+    "pipeline3StepsMode": true,
+    "refineStep": false
   },
   "openai": {
     "enabled": false,
     "baseUrl": "https://api.openai.com",
     "responsesPath": "/v1/responses",
     "model": "gpt-4.1-mini",
+    "timeoutSeconds": 120,
+    "concurrency": 4
+  },
+  "claude": {
+    "enabled": false,
+    "model": "claude-opus-4-8",
+    "maxTokens": 8096,
     "timeoutSeconds": 120,
     "concurrency": 4
   },
@@ -27,7 +35,7 @@
     "maxConceptsPerPage": 10
   },
   "preview": {
-    "enabled": true,
+    "enabled": false,
     "randomPages": false,
     "nrPages": 10,
     "combinePdfWithNotes": true

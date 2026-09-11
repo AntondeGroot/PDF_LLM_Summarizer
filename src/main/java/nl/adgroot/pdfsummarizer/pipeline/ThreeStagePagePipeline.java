@@ -33,7 +33,9 @@ public class ThreeStagePagePipeline implements BatchPipeline {
   private final CardsParser cardsParser;
 
   /** Carries step 1 + step 2 outputs through the async chain. */
-  private record IntermediateStages(String concepts, String rawCards) {}
+  private record IntermediateStages(String concepts, LlmResult step2Result) {
+    String rawCards() { return step2Result.response(); }
+  }
 
   /** Carries all three stage outputs to the final apply step. */
   private record AllStages(String concepts, String rawCards, LlmResult step3Result) {}
@@ -86,13 +88,19 @@ public class ThreeStagePagePipeline implements BatchPipeline {
 
                 // ── Step 2: generate cards from concepts ──────────────────
                 return llm.generateAsync(step2Prompt)
-                    .thenApply(r -> new IntermediateStages(concepts, r.response()));
+                    .thenApply(r -> new IntermediateStages(concepts, r));
               }, ctx.cpuPoolExecutor())
 
               .thenComposeAsync(intermediate -> {
                 String rawCards = intermediate.rawCards();
                 logStep(2, chapterTitle, batch.size());
                 appendDebugFile(ctx.outDir(), "step2_cards", chapterTitle, rawCards);
+
+                // ── Step 3: refine + deduplicate (optional) ───────────────
+                if (ctx.prompts().step3() == null) {
+                  return CompletableFuture.completedFuture(
+                      new AllStages(intermediate.concepts(), rawCards, intermediate.step2Result()));
+                }
 
                 String step3Prompt = ctx.prompts().step3().render(Map.of(
                     "topic", ctx.topic(),
@@ -107,7 +115,7 @@ public class ThreeStagePagePipeline implements BatchPipeline {
               .thenApplyAsync(stages -> {
                 try {
                   ctx.tracker().finishBatch(batch.size(), stages.step3Result().metrics());
-                  logStep(3, chapterTitle, batch.size());
+                  if (ctx.prompts().step3() != null) logStep(3, chapterTitle, batch.size());
 
                   var debugInfo = new PdfObject.StageDebugInfo(
                       stages.concepts(), stages.rawCards());
